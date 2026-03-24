@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Streamlit config (if you don't want to expose configs)
+# .streamlit/
+
+# Database files
+*.sqlite3
+*.db
+price_database.db
+price_calculator.db
+
+# Virtual environments
+.idea/
+.vscode/
+
+# Ignore raw data (Optional: Recommend keeping data out of source control)
+# data_raw/
+*.xlsx
+*.csv
