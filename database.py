@@ -97,6 +97,18 @@ def init_db():
         )
     ''')
 
+    # Bảng Account Requests
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS account_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            employee_id TEXT UNIQUE,
+            email TEXT UNIQUE,
+            status TEXT DEFAULT 'Pending',
+            created_at TIMESTAMP
+        )
+    ''')
+
     # Tạo User mặc định phục vụ test
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
@@ -232,6 +244,24 @@ def log_action(username, action, details):
     ''', (username, action, details, datetime.now()))
     conn.commit()
     conn.close()
+
+def request_account(name, employee_id, email):
+    """Lưu yêu cầu cấp quyền từ trang đăng nhập"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO account_requests (name, employee_id, email, status, created_at)
+            VALUES (?, ?, ?, 'Pending', ?)
+        ''', (name, employee_id, email, datetime.now()))
+        conn.commit()
+        return True, "✅ Yêu cầu cấp tài khoản đã được gửi thành công!"
+    except sqlite3.IntegrityError:
+        return False, "❌ Lỗi: ID Nhân viên hoặc Email này đã tồn tại yêu cầu!"
+    except Exception as e:
+        return False, f"❌ Lỗi: {e}"
+    finally:
+        conn.close()
 
 # Tự động khởi tạo cấu trúc (schema) nếu DB chưa có
 init_db()

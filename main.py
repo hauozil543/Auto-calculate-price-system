@@ -10,20 +10,43 @@ def login_screen():
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.subheader("Login to your account")
-        with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Login", use_container_width=True)
-            
-            if submit:
-                if auth.login(username, password):
-                    st.success(f"Logged in successfully as {username}!")
-                    st.rerun()
-                else:
-                    st.error("Invalid username or password. Please try again.")
+        tabs = st.tabs(["🔐 Login", "📝 Request Account"])
         
-        st.info("**Demo Accounts:**\n- Admin: `admin` / `admin123`\n- Pricing: `pricing_demo` / `123456`\n- Sales: `sales_demo` / `123456`")
+        with tabs[0]:
+            st.subheader("Login to your account")
+            with st.form("login_form"):
+                username = st.text_input("Username")
+                password = st.text_input("Password", type="password")
+                submit_login = st.form_submit_button("Login", use_container_width=True)
+                
+                if submit_login:
+                    if auth.login(username, password):
+                        st.success(f"Logged in successfully as {username}!")
+                        st.rerun()
+                    else:
+                        st.error("Invalid username or password. Please try again.")
+            
+            st.info("**Demo Accounts:**\n- Admin: `admin` / `admin123`\n- Pricing: `pricing_demo` / `123456`\n- Sales: `sales_demo` / `123456`")
+            
+        with tabs[1]:
+            st.subheader("Request New Account")
+            st.write("Don't have an account? Request one from Admin.")
+            with st.form("request_account_form", clear_on_submit=True):
+                req_name = st.text_input("Full Name")
+                req_id = st.text_input("Employee ID / Username")
+                req_email = st.text_input("Outlook Email")
+                submit_req = st.form_submit_button("Submit Request", use_container_width=True)
+                
+                if submit_req:
+                    if req_name and req_id and req_email:
+                        import database as db
+                        success, message = db.request_account(req_name, req_id, req_email)
+                        if success:
+                            st.success("Request sent to Admin! You will receive your password via Outlook mail once approved.")
+                        else:
+                            st.error(message)
+                    else:
+                        st.warning("Please fill in all fields.")
 
 def render_sidebar():
     with st.sidebar:
@@ -54,7 +77,7 @@ def main():
             ui_admin.render()
             
         elif st.session_state.role == "Pricing":
-            import ui_pricing
+            import ui_pricing 
             ui_pricing.render()
             
         elif st.session_state.role == "Sales":
