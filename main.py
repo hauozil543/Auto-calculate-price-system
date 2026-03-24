@@ -1,7 +1,7 @@
 import streamlit as st
 import auth
 
-# Cấu hình trang (phải là lệnh gọi đầu tiên của Streamlit)
+# Page configuration (must be the first Streamlit call)
 st.set_page_config(page_title="Price Calculator App", page_icon="🧮", layout="wide")
 
 def login_screen():
@@ -42,7 +42,7 @@ def login_screen():
                         import database as db
                         success, message = db.request_account(req_name, req_id, req_email)
                         if success:
-                            st.success("Request sent to Admin! You will receive your password via Outlook mail once approved.")
+                            st.success("Request sent! You will receive your password via Outlook email once approved.")
                         else:
                             st.error(message)
                     else:
@@ -54,30 +54,28 @@ def render_sidebar():
         st.caption(f"Role: **{st.session_state.role}**")
         st.divider()
         
-        # Các options chung sẽ nằm ở đây
-        
         st.divider()
         if st.button("🚪 Logout", use_container_width=True):
             auth.logout()
             st.rerun()
 
 def main():
-    # Khởi tạo trạng thái đăng nhập
+    # Initialize login state
     auth.init_session_state()
     
     if not st.session_state.logged_in:
         login_screen()
     else:
-        # Load thanh điều hướng bên trái
+        # Load sidebar navigation
         render_sidebar()
         
-        # Render các Module UI tùy theo quyền (Role-based)
+        # Render Role-based UI modules
         if st.session_state.role == "Admin":
             import ui_admin
             ui_admin.render()
             
         elif st.session_state.role == "Pricing":
-            import ui_pricing 
+            import ui_pricing
             ui_pricing.render()
             
         elif st.session_state.role == "Sales":
@@ -85,7 +83,7 @@ def main():
             ui_sales.render()
             
         else:
-            st.error("Lỗi: Không nhận diện được Role phân quyền này!")
+            st.error("Error: Role permission not recognized!")
 
 if __name__ == "__main__":
     main()

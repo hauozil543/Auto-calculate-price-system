@@ -23,7 +23,7 @@ def render():
                 new_password = st.text_input("Password", type="password")
             with col2:
                 new_role = st.selectbox("Role", ["Admin", "Pricing", "Sales"])
-                new_region = st.selectbox("Region", ["ALL", "CN", "EU", "IN", "JP", "KR", "US"])
+                new_region = st.selectbox("Region", ["ALL", "CN", "EU", "IN", "JP", "KR", "NA", "NM"])
             
             submit_user = st.form_submit_button("Create User")
             
@@ -64,7 +64,7 @@ def render():
                     cursor = conn.cursor()
                     # Delete from users table
                     cursor.execute("DELETE FROM users WHERE username = ?", (user_to_delete,))
-                    # Đồng thời xóa luôn request cũ (NẾU CÓ) dựa vào employee_id để giải phóng constraint cho phép đăng ký lại
+                    # Also delete old request to clear unique limits
                     cursor.execute("DELETE FROM account_requests WHERE employee_id = ?", (user_to_delete,))
                     
                     conn.commit()
@@ -92,7 +92,7 @@ def render():
                     req_id = st.selectbox("Select Request ID", df_reqs['id'].tolist())
                     role_assign = st.selectbox("Assign Role", ["Sales", "Pricing", "Admin"])
                 with col2:
-                    region_assign = st.selectbox("Assign Region", ["ALL", "CN", "EU", "IN", "JP", "KR", "US"])
+                    region_assign = st.selectbox("Assign Region", ["ALL", "CN", "EU", "IN", "JP", "KR", "NA", "NM"])
                     
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
@@ -112,20 +112,20 @@ def render():
                     import random
                     import string
                     
-                    # Tự động sinh password ngẫu nhiên 8 ký tự
+                    # Generate temporary 8-char random password
                     temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
                     username = req_info['employee_id']
                     
                     try:
                         cursor = conn.cursor()
-                        # Thêm User vào hệ thống
+                        # Add User to system
                         cursor.execute("INSERT INTO users (username, password_hash, role, region) VALUES (?, ?, ?, ?)", (username, temp_password, role_assign, region_assign))
-                        # Đổi Status
+                        # Change Status
                         cursor.execute("UPDATE account_requests SET status = 'Approved' WHERE id = ?", (int(req_id),))
                         conn.commit()
                         db.log_action(st.session_state.username, "Account Approval", f"Approved {username} as {role_assign}")
                         
-                        # Bắn mail từ cục Outlook nội bộ của Admin bằng win32com
+                        # Send email from Admin's local Outlook via win32com
                         import win32com.client as win32
                         try:
                             outlook = win32.Dispatch('outlook.application')
@@ -133,7 +133,7 @@ def render():
                             mail.To = req_info['email']
                             mail.Subject = "Your Price Calculator App Account is Ready!"
                             mail.Body = f"Hello {req_info['name']},\n\nYour account access request has been approved by the Admin.\n\n" \
-                                        f"System Link: http://172.16.124.126:8501\n\n" \
+                                        f"System Link: http://localhost:8501\n\n" \
                                         f"Username: {username}\n" \
                                         f"Temporary Password: {temp_password}\n" \
                                         f"Assigned Role: {role_assign}\n\n" \

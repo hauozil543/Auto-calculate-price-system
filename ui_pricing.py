@@ -9,18 +9,18 @@ def render():
     
     with tabs[0]:
         st.subheader("Pending Sales Requests")
-        st.info("Các yêu cầu báo giá/chốt Cost đặc biệt từ Sales sẽ hiển thị ở đây để duyệt.")
+        st.info("Pending quotation requests and manual cost adjustments from Sales will be displayed here for review.")
         conn = db.get_connection()
         df_req = pd.read_sql_query("SELECT * FROM requests ORDER BY created_at DESC", conn)
         if df_req.empty:
-            st.write("Chưa có request nào.")
+            st.write("No requests pending.")
         else:
             st.dataframe(df_req, use_container_width=True, hide_index=True)
         conn.close()
         
     with tabs[1]:
         st.subheader("Real-time Database Status")
-        st.write("Giám sát nhanh cấu hình hiện tại của cơ sở dữ liệu (Cache SQlite).")
+        st.write("Quick monitor of the current database cache configuration (SQLite).")
         conn = db.get_connection()
         
         col1, col2, col3, col4 = st.columns(4)
@@ -36,4 +36,4 @@ def render():
         col4.metric("Cost Records", count_cost)
         
         st.divider()
-        st.warning("🔄 Nếu file Excel GuidePriceAIRaw.xlsx được update, nút kích hoạt hàm `import_excel_to_sqlite()` sẽ nằm ở đây.")
+        st.warning("🔄 If the `GuidePriceAIRaw.xlsx` template is updated, the trigger for `import_excel_to_sqlite()` will be placed here.")
