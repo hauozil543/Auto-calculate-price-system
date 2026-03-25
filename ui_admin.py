@@ -133,7 +133,7 @@ def render():
                             mail.To = req_info['email']
                             mail.Subject = "Your Price Calculator App Account is Ready!"
                             mail.Body = f"Hello {req_info['name']},\n\nYour account access request has been approved by the Admin.\n\n" \
-                                        f"System Link: http://localhost:8501\n\n" \
+                                        f"System Link: http://172.16.124.126:8501\n\n" \
                                         f"Username: {username}\n" \
                                         f"Temporary Password: {temp_password}\n" \
                                         f"Assigned Role: {role_assign}\n\n" \

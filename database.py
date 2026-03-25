@@ -81,6 +81,8 @@ def init_db():
             status TEXT,
             actual_yield REAL,
             base_price REAL,
+            region TEXT,
+            final_price REAL,
             created_at TIMESTAMP,
             updated_at TIMESTAMP
         )

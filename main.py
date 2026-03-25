@@ -5,7 +5,7 @@ import auth
 st.set_page_config(page_title="Price Calculator App", page_icon="🧮", layout="wide")
 
 def login_screen():
-    st.title("🧮 Welcome to Price Calculator App")
+    st.title("Welcome to Price Calculator App")
     st.markdown("---")
     
     col1, col2, col3 = st.columns([1, 2, 1])
