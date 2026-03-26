@@ -63,109 +63,157 @@ def render_grid(tab_type, tab_name):
         submit_btn_label = "Calculate Standard Guide Prices" if tab_type == 'std' else "Send Batch Single BIN Requests to Pricing"
         submit_calc = st.form_submit_button(submit_btn_label, type="primary", use_container_width=True)
         
-        if submit_calc:
-            results = []
-            has_error = False
-            conn = db.get_connection()
-            for idx, r in enumerate(rows_data):
-                mat7d_val = r["Material code (7D)"].strip()
-                mat18d_val = r["Material code (18D)"].strip()
-                reg_val = r["Region"].strip()
+    if submit_calc:
+        results = []
+        has_error = False
+        conn = db.get_connection()
+        for idx, r in enumerate(rows_data):
+            mat7d_val = r["Material code (7D)"].strip()
+            mat18d_val = r["Material code (18D)"].strip()
+            reg_val = r["Region"].strip()
+            
+            if not mat7d_val or not mat18d_val or not reg_val:
+                st.error(f"Row {idx + 1}: Missing mandatory fields (7D, 18D, Region)!")
+                has_error = True
+                continue
                 
-                if not mat7d_val or not mat18d_val or not reg_val:
-                    st.error(f"Row {idx + 1}: Missing mandatory fields (7D, 18D, Region)!")
+            if not mat18d_val.startswith(mat7d_val[:7]):
+                st.error(f"Row {idx + 1}: Validation Error! First 7 characters of Code 18D must exactly match Code 7D.")
+                has_error = True
+                continue
+            
+            # Smart Category & Name Resolution!
+            db_lookup_df = pd.read_sql_query("SELECT category, material_name, buffer FROM standard_products WHERE material_code = ?", conn, params=(mat7d_val[:7],))
+            buffer_val = 0.0
+            if not db_lookup_df.empty:
+                # OVERRIDE user input with correct DB category and name!
+                true_cat = db_lookup_df['category'].iloc[0]
+                true_name = db_lookup_df['material_name'].iloc[0]
+                try:
+                    buffer_val = float(db_lookup_df['buffer'].iloc[0])
+                except:
+                    buffer_val = 0.0
+                    
+                if r["Category"].strip() != "" and r["Category"].strip() != true_cat:
+                    st.info(f"Row {idx + 1}: Category was auto-corrected from '{r['Category']}' to '{true_cat}' based on Database match.")
+                if r["Material Name"].strip() != "" and r["Material Name"].strip() != true_name:
+                    st.info(f"Row {idx + 1}: Material Name was auto-corrected from '{r['Material Name']}' to '{true_name}' based on Database match.")
+                    
+                r["Category"] = true_cat
+                r["Material Name"] = true_name
+                cat_val = true_cat
+            else:
+                cat_val = r["Category"].strip()
+                mat_name_val = r["Material Name"].strip()
+                if not cat_val:
+                    st.error(f"Row {idx + 1}: Unrecognized 7D Code! You must manually input the Category into the 'Cat' column.")
                     has_error = True
                     continue
-                    
-                if not mat18d_val.startswith(mat7d_val[:7]):
-                    st.error(f"Row {idx + 1}: Validation Error! First 7 characters of Code 18D must exactly match Code 7D.")
-                    has_error = True
-                    continue
+                if not mat_name_val:
+                    st.warning(f"Row {idx + 1}: Unrecognized 7D Code. Please consider inputting a manual Name as well.")
+            
+            guide_price = "N/A"
+            if tab_type == 'std':
+                # Standard BIN Logic
+                target_gm = db.get_gm_target(cat_val, reg_val)
+                cost_df = db.get_cost(mat7d_val[:7])
+                base_cost = cost_df['cost_unified'].iloc[0] if not cost_df.empty else 0.0
                 
-                # Smart Category & Name Resolution!
-                db_lookup_df = pd.read_sql_query("SELECT category, material_name FROM standard_products WHERE material_code = ?", conn, params=(mat7d_val[:7],))
-                if not db_lookup_df.empty:
-                    # OVERRIDE user input with correct DB category and name!
-                    true_cat = db_lookup_df['category'].iloc[0]
-                    true_name = db_lookup_df['material_name'].iloc[0]
+                if target_gm > 0 and target_gm < 1 and base_cost > 0:
+                    gp_val = ((1 + buffer_val) * base_cost) / (1 - target_gm)
+                    guide_price = f"${gp_val:.4f}"
                     
-                    if r["Category"].strip() != "" and r["Category"].strip() != true_cat:
-                        st.info(f"Row {idx + 1}: Category was auto-corrected from '{r['Category']}' to '{true_cat}' based on Database match.")
-                    if r["Material Name"].strip() != "" and r["Material Name"].strip() != true_name:
-                        st.info(f"Row {idx + 1}: Material Name was auto-corrected from '{r['Material Name']}' to '{true_name}' based on Database match.")
-                        
-                    r["Category"] = true_cat
-                    r["Material Name"] = true_name
-                    cat_val = true_cat
-                else:
-                    cat_val = r["Category"].strip()
-                    mat_name_val = r["Material Name"].strip()
-                    if not cat_val:
-                        st.error(f"Row {idx + 1}: Unrecognized 7D Code! You must manually input the Category into the 'Cat' column.")
-                        has_error = True
-                        continue
-                    if not mat_name_val:
-                        st.warning(f"Row {idx + 1}: Unrecognized 7D Code. Please consider inputting a manual Name as well.")
-                
-                guide_price = "N/A"
-                if tab_type == 'std':
-                    # Standard BIN Logic
-                    target_gm = db.get_gm_target(cat_val, reg_val)
-                    cost_df = db.get_cost(mat7d_val[:7])
-                    base_cost = cost_df['cost_unified'].iloc[0] if not cost_df.empty else 0.0
+                    gaps = db.get_price_gaps(cat_val)
+                    gp_r1 = gp_val * (1 + gaps.get("GP Range 1", 0.0))
+                    gp_r2 = gp_val * (1 + gaps.get("GP Range 2", 0.0))
+                    gp_r3 = gp_val * (1 + gaps.get("GP Range 3", 0.0))
+                    gp_r4 = gp_val * (1 + gaps.get("GP Range 4", 0.0))
+                    gp_r5 = gp_val * (1 + gaps.get("GP Range 5", 0.0))
                     
-                    if target_gm > 0 and target_gm < 1 and base_cost > 0:
-                        gp_val = base_cost / (1 - target_gm)
-                        guide_price = f"${gp_val:.4f}"
-                    elif base_cost <= 0:
-                        try:
-                            cursor = conn.cursor()
-                            cursor.execute('''
-                                INSERT INTO requests (sales_username, material_code, request_type, status, region, created_at, updated_at)
-                                VALUES (?, ?, 'Standard Bin', 'Pending Cost', ?, ?, ?)
-                            ''', (st.session_state.username, mat7d_val[:7], reg_val, datetime.datetime.now(), datetime.datetime.now()))
-                            conn.commit()
-                            db.log_action(st.session_state.username, "New Request", f"Auto-Sent pending cost request for {mat7d_val}")
-                            st.warning(f"Row {idx+1}: Missing Baseline Cost! A 'Pending Cost' request was automatically sent to the Pricing Team.")
-                        except Exception:
-                            pass
-                        guide_price = "Pending Cost"
-                    else:
-                        guide_price = "No GM Target"
-                        
-                    r["Guide Price"] = guide_price
-                else:
-                    # Single BIN Logic Workflow (Send Request to Pricing)
-                    target_gm = db.get_gm_target(cat_val, reg_val)
-                    if target_gm <= 0:
-                        st.error(f"Row {idx + 1}: Failed to route to Pricing. No GM Target mapping found for Category '{cat_val}' and Region '{reg_val}'.")
-                        has_error = True
-                        continue
-                        
-                    cost_df = db.get_cost(mat7d_val[:7])
-                    base_cost = cost_df['cost_unified'].iloc[0] if not cost_df.empty else 0.0
-                    status_val = 'Pending Yield' if base_cost > 0 else 'Pending Cost & Yield'
+                    r["GP Range 1"] = f"${gp_r1:.4f}"
+                    r["GP Range 2"] = f"${gp_r2:.4f}"
+                    r["GP Range 3"] = f"${gp_r3:.4f}"
+                    r["GP Range 4"] = f"${gp_r4:.4f}"
+                    r["GP Range 5"] = f"${gp_r5:.4f}"
                     
+                    # Calculate VP Prices (VP = GP * 0.95)
+                    r["VP Range 1"] = f"${gp_r1 * 0.95:.4f}"
+                    r["VP Range 2"] = f"${gp_r2 * 0.95:.4f}"
+                    r["VP Range 3"] = f"${gp_r3 * 0.95:.4f}"
+                    r["VP Range 4"] = f"${gp_r4 * 0.95:.4f}"
+                    r["VP Range 5"] = f"${gp_r5 * 0.95:.4f}"
+                    
+                    # Save the successfully auto-calculated Standard BIN request into history
+                    try:
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            INSERT INTO requests (sales_username, material_code, request_type, status, region, base_price, final_price, range_1, range_2, range_3, range_4, range_5, created_at, updated_at)
+                            VALUES (?, ?, 'Standard Bin', 'Completed (Auto)', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (st.session_state.username, mat7d_val[:7], reg_val, base_cost, gp_val, gp_r1, gp_r2, gp_r3, gp_r4, gp_r5, datetime.datetime.now(), datetime.datetime.now()))
+                        conn.commit()
+                        db.log_action(st.session_state.username, "Standard BIN Calc", f"Auto-calculated Guide Price for {mat7d_val[:7]} at ${gp_val:.4f}")
+                    except Exception as req_db_e:
+                        pass
+                        
+                elif base_cost <= 0:
                     try:
                         cursor = conn.cursor()
                         cursor.execute('''
                             INSERT INTO requests (sales_username, material_code, request_type, status, region, created_at, updated_at)
-                            VALUES (?, ?, 'Single Bin', ?, ?, ?, ?)
-                        ''', (st.session_state.username, mat7d_val[:7], status_val, reg_val, datetime.datetime.now(), datetime.datetime.now()))
+                            VALUES (?, ?, 'Standard Bin', 'Pending Cost', ?, ?, ?)
+                        ''', (st.session_state.username, mat7d_val[:7], reg_val, datetime.datetime.now(), datetime.datetime.now()))
                         conn.commit()
-                        r["Submission Status"] = f"Success ({status_val})"
-                        db.log_action(st.session_state.username, "New Request", f"Sales requested Single BIN for {mat7d_val}")
-                    except Exception as e:
-                        r["Submission Status"] = f"Failed DB Error"
-                        st.error(f"Row {idx+1} Failed: {e}")
-                        has_error = True
+                        db.log_action(st.session_state.username, "New Request", f"Auto-Sent pending cost request for {mat7d_val}")
+                        st.warning(f"Row {idx+1}: Missing Baseline Cost! A 'Pending Cost' request was automatically sent to the Pricing Team.")
+                    except Exception:
+                        pass
+                    guide_price = "Pending Cost"
+                else:
+                    guide_price = "No GM Target"
+                    
+                r["Guide Price"] = guide_price
+            else:
+                # Single BIN Logic Workflow (Send Request to Pricing)
+                target_gm = db.get_gm_target(cat_val, reg_val)
+                if target_gm <= 0:
+                    st.error(f"Row {idx + 1}: Failed to route to Pricing. No GM Target mapping found for Category '{cat_val}' and Region '{reg_val}'.")
+                    has_error = True
+                    continue
+                    
+                cost_df = db.get_cost(mat7d_val[:7])
+                base_cost = cost_df['cost_unified'].iloc[0] if not cost_df.empty else 0.0
+                status_val = 'Pending Yield' if base_cost > 0 else 'Pending Cost & Yield'
                 
-                results.append(r)
-            conn.close()
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT INTO requests (sales_username, material_code, request_type, status, region, created_at, updated_at)
+                        VALUES (?, ?, 'Single Bin', ?, ?, ?, ?)
+                    ''', (st.session_state.username, mat7d_val[:7], status_val, reg_val, datetime.datetime.now(), datetime.datetime.now()))
+                    conn.commit()
+                    r["Submission Status"] = f"Success ({status_val})"
+                    db.log_action(st.session_state.username, "New Request", f"Sales requested Single BIN for {mat7d_val}")
+                except Exception as e:
+                    r["Submission Status"] = f"Failed DB Error"
+                    st.error(f"Row {idx+1} Failed: {e}")
+                    has_error = True
             
-            if not has_error and results:
-                st.success("Batch Processing Complete!")
-                st.dataframe(pd.DataFrame(results), use_container_width=True)
+            results.append(r)
+        conn.close()
+        
+        if not has_error and results:
+            st.success("Batch Processing Complete!")
+            res_df = pd.DataFrame(results)
+            st.dataframe(res_df, use_container_width=True)
+            
+            # Export functionality
+            csv = res_df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Download Results as CSV",
+                data=csv,
+                file_name=f"pricing_results_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+            )
 
 
 def render():
@@ -187,10 +235,28 @@ def render():
     with tabs[1]:
         st.subheader("My Request History")
         conn = db.get_connection()
-        df_my_reqs = pd.read_sql_query("SELECT id, material_code, request_type, region, status, actual_yield, final_price, created_at FROM requests WHERE sales_username = ? ORDER BY created_at DESC", conn, params=(st.session_state.username,))
+        df_my_reqs = pd.read_sql_query("SELECT id, material_code, request_type, region, status, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE sales_username = ? ORDER BY created_at DESC", conn, params=(st.session_state.username,))
         conn.close()
         
         if df_my_reqs.empty:
             st.info("Historical requests for Cost / Yield Updates sent to the Pricing team will appear here.")
         else:
+            # Calculate VP Ranges on the fly for history view
+            rename_dict = {}
+            for i in range(1, 6):
+                df_my_reqs[f'VP Range {i}'] = df_my_reqs[f'range_{i}'] * 0.95
+                rename_dict[f'range_{i}'] = f'GP Range {i}'
+            
+            # Rename all GP columns at once
+            df_my_reqs = df_my_reqs.rename(columns=rename_dict)
+                
             st.dataframe(df_my_reqs, use_container_width=True, hide_index=True)
+            
+            # Export History
+            csv_hist = df_my_reqs.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Export History to CSV",
+                data=csv_hist,
+                file_name=f"request_history_{st.session_state.username}_{datetime.datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+            )

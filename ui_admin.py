@@ -24,6 +24,7 @@ def render():
             with col2:
                 new_role = st.selectbox("Role", ["Admin", "Pricing", "Sales"])
                 new_region = st.selectbox("Region", ["ALL", "CN", "EU", "IN", "JP", "KR", "NA", "NM"])
+                new_level = st.selectbox("Level", ["Staff", "L team leader", "C team leader", "G team leader"])
             
             submit_user = st.form_submit_button("Create User")
             
@@ -32,8 +33,8 @@ def render():
                     try:
                         cursor = conn.cursor()
                         cursor.execute(
-                            "INSERT INTO users (username, password_hash, role, region) VALUES (?, ?, ?, ?)",
-                            (new_username.strip(), new_password.strip(), new_role, new_region)
+                            "INSERT INTO users (username, password_hash, role, level, region) VALUES (?, ?, ?, ?, ?)",
+                            (new_username.strip(), new_password.strip(), new_role, new_level, new_region)
                         )
                         conn.commit()
                         db.log_action(st.session_state.username, "Create User", f"Created user {new_username} ({new_role})")
@@ -77,7 +78,7 @@ def render():
     with tabs[1]:
         st.subheader("Pending Account Requests")
         conn = db.get_connection()
-        df_reqs = pd.read_sql_query("SELECT id, name, employee_id, email, status, created_at FROM account_requests WHERE status = 'Pending'", conn)
+        df_reqs = pd.read_sql_query("SELECT id, name, employee_id, email, level, status, created_at FROM account_requests WHERE status = 'Pending'", conn)
         
         if df_reqs.empty:
             st.info("Currently, there are no pending requests.")
@@ -86,13 +87,23 @@ def render():
             
             st.markdown("---")
             st.subheader("Approve & Provision Account")
+            
+            req_id = st.selectbox("Select Request ID to Process", df_reqs['id'].tolist())
+            req_info = df_reqs[df_reqs['id'] == req_id].iloc[0]
+            
             with st.form("approve_req_form"):
+                st.info(f"**Request details:** {req_info['name']} ({req_info['employee_id']}) | Requested Level: **{req_info['level']}**")
                 col1, col2 = st.columns(2)
                 with col1:
-                    req_id = st.selectbox("Select Request ID", df_reqs['id'].tolist())
                     role_assign = st.selectbox("Assign Role", ["Sales", "Pricing", "Admin"])
                 with col2:
                     region_assign = st.selectbox("Assign Region", ["ALL", "CN", "EU", "IN", "JP", "KR", "NA", "NM"])
+                    levels = ["Staff", "L team leader", "C team leader", "G team leader"]
+                    try:
+                        def_idx = levels.index(req_info['level'])
+                    except:
+                        def_idx = 0
+                    level_assign = st.selectbox("Assign Level", levels, index=def_idx)
                     
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
@@ -108,7 +119,6 @@ def render():
                     st.rerun()
 
                 if approve_btn:
-                    req_info = df_reqs[df_reqs['id'] == req_id].iloc[0]
                     import random
                     import string
                     
@@ -119,7 +129,7 @@ def render():
                     try:
                         cursor = conn.cursor()
                         # Add User to system
-                        cursor.execute("INSERT INTO users (username, password_hash, role, region) VALUES (?, ?, ?, ?)", (username, temp_password, role_assign, region_assign))
+                        cursor.execute("INSERT INTO users (username, password_hash, role, level, region) VALUES (?, ?, ?, ?, ?)", (username, temp_password, role_assign, level_assign, region_assign))
                         # Change Status
                         cursor.execute("UPDATE account_requests SET status = 'Approved' WHERE id = ?", (int(req_id),))
                         conn.commit()

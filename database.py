@@ -83,6 +83,11 @@ def init_db():
             base_price REAL,
             region TEXT,
             final_price REAL,
+            range_1 REAL,
+            range_2 REAL,
+            range_3 REAL,
+            range_4 REAL,
+            range_5 REAL,
             created_at TIMESTAMP,
             updated_at TIMESTAMP
         )
@@ -99,17 +104,25 @@ def init_db():
         )
     ''')
 
-    # Bảng Account Requests
+    # Bảng Tài Khoản Chờ Phê Duyệt
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS account_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
             employee_id TEXT UNIQUE,
+            name TEXT,
             email TEXT UNIQUE,
+            region TEXT,
+            level TEXT,
             status TEXT DEFAULT 'Pending',
             created_at TIMESTAMP
         )
     ''')
+    
+    # Migration: Thêm cột level vào account_requests nếu chưa có
+    try:
+        cursor.execute("ALTER TABLE account_requests ADD COLUMN level TEXT")
+    except:
+        pass # Cột đã tồn tại hoặc bảng chưa có
 
     # Tạo User mặc định phục vụ test
     cursor.execute("SELECT COUNT(*) FROM users")
@@ -232,9 +245,16 @@ def get_price_gaps(category):
     query = "SELECT range_name, gap_ratio FROM price_gaps WHERE category = ?"
     df = pd.read_sql_query(query, conn, params=(category,))
     conn.close()
-    if not df.empty:
-        return dict(zip(df['range_name'], df['gap_ratio']))
-    return {}
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT range_name, gap_ratio FROM price_gaps WHERE category = ?", (category,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    gaps = {}
+    for r in rows:
+        gaps[r[0]] = float(r[1])
+    return gaps
 
 def log_action(username, action, details):
     """Ghi log hành vi hệ thống."""
@@ -247,15 +267,15 @@ def log_action(username, action, details):
     conn.commit()
     conn.close()
 
-def request_account(name, employee_id, email):
+def request_account(name, employee_id, email, level):
     """Lưu yêu cầu cấp quyền từ trang đăng nhập"""
     conn = get_connection()
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            INSERT INTO account_requests (name, employee_id, email, status, created_at)
-            VALUES (?, ?, ?, 'Pending', ?)
-        ''', (name, employee_id, email, datetime.now()))
+            INSERT INTO account_requests (name, employee_id, email, level, status, created_at)
+            VALUES (?, ?, ?, ?, 'Pending', ?)
+        ''', (name, employee_id, email, level, datetime.now()))
         conn.commit()
         return True, "✅ Yêu cầu cấp tài khoản đã được gửi thành công!"
     except sqlite3.IntegrityError:

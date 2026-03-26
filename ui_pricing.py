@@ -13,13 +13,22 @@ def render():
         st.info("Process pending quotation requests and missing cost queries to finalize Base Prices for Sales.")
         
         conn = db.get_connection()
-        df_req = pd.read_sql_query("SELECT id, sales_username, material_code, request_type, region, status, actual_yield, final_price, created_at FROM requests ORDER BY created_at DESC", conn)
+        df_req = pd.read_sql_query("SELECT id, sales_username, material_code, request_type, region, status, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests ORDER BY created_at DESC", conn)
         
         if df_req.empty:
             st.write("No requests pending.")
         else:
             st.write("### All Requests Log Tracker")
             st.dataframe(df_req, use_container_width=True, hide_index=True)
+            
+            # Export Log
+            csv_pricing = df_req.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Export Pricing Log to CSV",
+                data=csv_pricing,
+                file_name=f"pricing_log_{datetime.datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+            )
             
             df_pending = df_req[df_req['status'].str.contains('Pending')]
             
@@ -60,27 +69,42 @@ def render():
                             c_df = pd.read_sql_query("SELECT cost_unified FROM costs WHERE material_code = ?", conn, params=(mat_code[:7],))
                             final_cost = c_df['cost_unified'].iloc[0] if not c_df.empty else 0.0
                             
-                        prod_df = pd.read_sql_query("SELECT category FROM standard_products WHERE material_code = ?", conn, params=(mat_code[:7],))
-                        cat_val = prod_df['category'].iloc[0] if not prod_df.empty else ""
+                        prod_df = pd.read_sql_query("SELECT category, buffer FROM standard_products WHERE material_code = ?", conn, params=(mat_code[:7],))
+                        cat_val = ""
+                        buffer_val = 0.0
+                        if not prod_df.empty:
+                            cat_val = prod_df['category'].iloc[0]
+                            try:
+                                buffer_val = float(prod_df['buffer'].iloc[0])
+                            except:
+                                buffer_val = 0.0
+                                
                         target_gm = db.get_gm_target(cat_val, reg_val)
                         
                         calc_price = 0.0
                         if target_gm > 0 and target_gm < 1 and final_cost > 0:
                             if req_type == "Single Bin" and input_yield:
-                                # Formula approved by user: (Cost / Yield) / (1 - Target GM)
-                                calc_price = (final_cost / (input_yield / 100.0)) / (1 - target_gm)
+                                # Formula approved by user: Buffer * (Cost / Yield) / (1 - Target GM)
+                                calc_price = ((1 + buffer_val) * (final_cost / (input_yield / 100.0))) / (1 - target_gm)
                             else:
-                                # Standard Bin Formula: Cost / (1 - Target GM)
-                                calc_price = final_cost / (1 - target_gm)
+                                # Standard Bin Formula: Buffer * Cost / (1 - Target GM)
+                                calc_price = ((1 + buffer_val) * final_cost) / (1 - target_gm)
+                                
+                        gaps = db.get_price_gaps(cat_val)
+                        gp_r1 = calc_price * (1 + gaps.get("GP Range 1", 0.0))
+                        gp_r2 = calc_price * (1 + gaps.get("GP Range 2", 0.0))
+                        gp_r3 = calc_price * (1 + gaps.get("GP Range 3", 0.0))
+                        gp_r4 = calc_price * (1 + gaps.get("GP Range 4", 0.0))
+                        gp_r5 = calc_price * (1 + gaps.get("GP Range 5", 0.0))
                                 
                         try:
                             cursor = conn.cursor()
                             # Update requests table
                             cursor.execute('''
                                 UPDATE requests
-                                SET status = 'Completed', base_price = ?, actual_yield = ?, final_price = ?, updated_at = ?
+                                SET status = 'Completed', base_price = ?, actual_yield = ?, final_price = ?, range_1 = ?, range_2 = ?, range_3 = ?, range_4 = ?, range_5 = ?, updated_at = ?
                                 WHERE id = ?
-                            ''', (final_cost, input_yield if input_yield else 0.0, calc_price, datetime.datetime.now(), int(req_id)))
+                            ''', (final_cost, input_yield if input_yield else 0.0, calc_price, gp_r1, gp_r2, gp_r3, gp_r4, gp_r5, datetime.datetime.now(), int(req_id)))
                             
                             # If pricing input a new cost, update the main costs cache so future requests don't fail!
                             if input_cost is not None:
@@ -92,9 +116,12 @@ def render():
                             
                             conn.commit()
                             
-                            # Log action (Pricing processes the request) MUST BE AFTER COMMIT to prevent SQLite 'database is locked'
-                            db.log_action("System/Pricing", "Process Request", f"{st.session_state.username} processed Request #{req_id} for {sales_user}. Final Price: ${calc_price:.4f}")
-                            st.success(f"Request #{req_id} perfectly processed & successfully routed back to Sales! Final Calculated Price: ${calc_price:.4f}")
+                            # Calculate primary VP for display
+                            vp_price = calc_price * 0.95
+                            
+                            # Log action
+                            db.log_action("System/Pricing", "Process Request", f"{st.session_state.username} processed Request #{req_id} for {sales_user}. GP: ${calc_price:.4f}, VP: ${vp_price:.4f}")
+                            st.success(f"Request #{req_id} processed! **GP: ${calc_price:.4f}** | **VP: ${vp_price:.4f}**")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error updating request: {e}")
