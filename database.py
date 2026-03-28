@@ -22,7 +22,8 @@ def init_db():
             password_hash TEXT,
             role TEXT,
             level TEXT,
-            region TEXT
+            region TEXT,
+            division TEXT
         )
     ''')
     
@@ -88,6 +89,7 @@ def init_db():
             range_3 REAL,
             range_4 REAL,
             range_5 REAL,
+            division TEXT,
             created_at TIMESTAMP,
             updated_at TIMESTAMP
         )
@@ -113,23 +115,28 @@ def init_db():
             email TEXT UNIQUE,
             region TEXT,
             level TEXT,
+            division TEXT,
             status TEXT DEFAULT 'Pending',
             created_at TIMESTAMP
         )
     ''')
     
-    # Migration: Thêm cột level vào account_requests nếu chưa có
-    try:
-        cursor.execute("ALTER TABLE account_requests ADD COLUMN level TEXT")
-    except:
-        pass # Cột đã tồn tại hoặc bảng chưa có
+    # Migration: Thêm các cột division nếu chưa có
+    try: cursor.execute("ALTER TABLE users ADD COLUMN division TEXT DEFAULT 'ALL'")
+    except: pass
+    try: cursor.execute("ALTER TABLE account_requests ADD COLUMN division TEXT")
+    except: pass
+    try: cursor.execute("ALTER TABLE requests ADD COLUMN division TEXT")
+    except: pass
+    try: cursor.execute("ALTER TABLE account_requests ADD COLUMN level TEXT")
+    except: pass
 
     # Tạo User mặc định phục vụ test
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO users (username, password_hash, role) VALUES ('admin', 'admin123', 'Admin')")
-        cursor.execute("INSERT INTO users (username, password_hash, role) VALUES ('pricing_demo', '123456', 'Pricing')")
-        cursor.execute("INSERT INTO users (username, password_hash, role) VALUES ('sales_demo', '123456', 'Sales')")
+        cursor.execute("INSERT INTO users (username, password_hash, role, division) VALUES ('admin', 'admin123', 'Admin', 'ALL')")
+        cursor.execute("INSERT INTO users (username, password_hash, role, division) VALUES ('pricing_demo', '123456', 'Pricing', 'HI')")
+        cursor.execute("INSERT INTO users (username, password_hash, role, division) VALUES ('sales_demo', '123456', 'Sales', 'HI')")
 
     conn.commit()
     conn.close()
@@ -267,15 +274,15 @@ def log_action(username, action, details):
     conn.commit()
     conn.close()
 
-def request_account(name, employee_id, email, level):
+def request_account(name, employee_id, email, level, division):
     """Lưu yêu cầu cấp quyền từ trang đăng nhập"""
     conn = get_connection()
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            INSERT INTO account_requests (name, employee_id, email, level, status, created_at)
-            VALUES (?, ?, ?, ?, 'Pending', ?)
-        ''', (name, employee_id, email, level, datetime.now()))
+            INSERT INTO account_requests (name, employee_id, email, level, division, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'Pending', ?)
+        ''', (name, employee_id, email, level, division, datetime.now()))
         conn.commit()
         return True, "✅ Yêu cầu cấp tài khoản đã được gửi thành công!"
     except sqlite3.IntegrityError:

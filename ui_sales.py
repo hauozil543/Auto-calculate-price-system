@@ -155,9 +155,9 @@ def render_grid(tab_type, tab_name):
                     try:
                         cursor = conn.cursor()
                         cursor.execute('''
-                            INSERT INTO requests (sales_username, material_code, request_type, status, region, base_price, final_price, range_1, range_2, range_3, range_4, range_5, created_at, updated_at)
-                            VALUES (?, ?, 'Standard Bin', 'Completed (Auto)', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (st.session_state.username, mat7d_val[:7], reg_val, base_cost, gp_val, gp_r1, gp_r2, gp_r3, gp_r4, gp_r5, datetime.datetime.now(), datetime.datetime.now()))
+                            INSERT INTO requests (sales_username, material_code, request_type, status, region, base_price, final_price, range_1, range_2, range_3, range_4, range_5, division, created_at, updated_at)
+                            VALUES (?, ?, 'Standard Bin', 'Completed (Auto)', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (st.session_state.username, mat7d_val[:7], reg_val, base_cost, gp_val, gp_r1, gp_r2, gp_r3, gp_r4, gp_r5, st.session_state.division, datetime.datetime.now(), datetime.datetime.now()))
                         conn.commit()
                         db.log_action(st.session_state.username, "Standard BIN Calc", f"Auto-calculated Guide Price for {mat7d_val[:7]} at ${gp_val:.4f}")
                     except Exception as req_db_e:
@@ -167,9 +167,9 @@ def render_grid(tab_type, tab_name):
                     try:
                         cursor = conn.cursor()
                         cursor.execute('''
-                            INSERT INTO requests (sales_username, material_code, request_type, status, region, created_at, updated_at)
-                            VALUES (?, ?, 'Standard Bin', 'Pending Cost', ?, ?, ?)
-                        ''', (st.session_state.username, mat7d_val[:7], reg_val, datetime.datetime.now(), datetime.datetime.now()))
+                            INSERT INTO requests (sales_username, material_code, request_type, status, region, division, created_at, updated_at)
+                            VALUES (?, ?, 'Standard Bin', 'Pending Cost', ?, ?, ?, ?)
+                        ''', (st.session_state.username, mat7d_val[:7], reg_val, st.session_state.division, datetime.datetime.now(), datetime.datetime.now()))
                         conn.commit()
                         db.log_action(st.session_state.username, "New Request", f"Auto-Sent pending cost request for {mat7d_val}")
                         st.warning(f"Row {idx+1}: Missing Baseline Cost! A 'Pending Cost' request was automatically sent to the Pricing Team.")
@@ -195,9 +195,9 @@ def render_grid(tab_type, tab_name):
                 try:
                     cursor = conn.cursor()
                     cursor.execute('''
-                        INSERT INTO requests (sales_username, material_code, request_type, status, region, created_at, updated_at)
-                        VALUES (?, ?, 'Selected Bin', ?, ?, ?, ?)
-                    ''', (st.session_state.username, mat7d_val[:7], status_val, reg_val, datetime.datetime.now(), datetime.datetime.now()))
+                        INSERT INTO requests (sales_username, material_code, request_type, status, region, division, created_at, updated_at)
+                        VALUES (?, ?, 'Selected Bin', ?, ?, ?, ?, ?)
+                    ''', (st.session_state.username, mat7d_val[:7], status_val, reg_val, st.session_state.division, datetime.datetime.now(), datetime.datetime.now()))
                     conn.commit()
                     r["Submission Status"] = f"Success ({status_val})"
                     db.log_action(st.session_state.username, "New Request", f"Sales requested Selected BIN for {mat7d_val}")
@@ -243,7 +243,7 @@ def render():
     with tabs[1]:
         st.subheader("My Request History")
         conn = db.get_connection()
-        df_my_reqs = pd.read_sql_query("SELECT id, material_code, request_type, region, status, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE sales_username = ? ORDER BY created_at DESC", conn, params=(st.session_state.username,))
+        df_my_reqs = pd.read_sql_query("SELECT id, material_code, request_type, region, division, status, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE sales_username = ? AND division = ? ORDER BY created_at DESC", conn, params=(st.session_state.username, st.session_state.division))
         conn.close()
 
         if df_my_reqs.empty:

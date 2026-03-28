@@ -12,12 +12,14 @@ def init_session_state():
         st.session_state.region = None
     if 'level' not in st.session_state:
         st.session_state.level = None
+    if 'division' not in st.session_state:
+        st.session_state.division = None
 
 def login(username, password):
     conn = db.get_connection()
     cursor = conn.cursor()
     # Password is plaintext for demo purposes per init_db() logic
-    cursor.execute("SELECT role, region, level FROM users WHERE username = ? AND password_hash = ?", (username, password))
+    cursor.execute("SELECT role, region, level, division FROM users WHERE username = ? AND password_hash = ?", (username, password))
     user = cursor.fetchone()
     conn.close()
     
@@ -27,9 +29,10 @@ def login(username, password):
         st.session_state.role = user[0]
         st.session_state.region = user[1] if user[1] else "ALL"
         st.session_state.level = user[2]
+        st.session_state.division = user[3] if user[3] else "HI"
         # Clear the logout guard upon successful login
         st.session_state.just_logged_out = False
-        db.log_action(username, "Login", "User logged in successfully")
+        db.log_action(username, "Login", f"User logged in successfully (Division: {st.session_state.division})")
         return True
     return False
 
@@ -37,7 +40,7 @@ def login_by_username(username):
     """Đăng nhập tự động bằng username (khi có Cookie)"""
     conn = db.get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT role, region, level FROM users WHERE username = ?", (username,))
+    cursor.execute("SELECT role, region, level, division FROM users WHERE username = ?", (username,))
     user = cursor.fetchone()
     conn.close()
     
@@ -47,9 +50,10 @@ def login_by_username(username):
         st.session_state.role = user[0]
         st.session_state.region = user[1] if user[1] else "ALL"
         st.session_state.level = user[2]
+        st.session_state.division = user[3] if user[3] else "HI"
         # Clear the logout guard upon successful auto-login
         st.session_state.just_logged_out = False
-        db.log_action(username, "Auto-Login", "User logged in via Cookie")
+        db.log_action(username, "Auto-Login", f"User logged in via Cookie (Division: {st.session_state.division})")
         return True
     return False
 

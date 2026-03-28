@@ -141,11 +141,12 @@ def render_login():
                 ri = st.text_input("Employee ID / Username")
                 re = st.text_input("Outlook Email")
                 rl = st.selectbox("Tier", ["Staff", "Team Leader", "Manager", "Director"])
+                div = st.selectbox("Division", ["HI", "LT", "AM", "IT"])
                 st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
                 
                 if st.button("Submit Request", use_container_width=True, type="primary"):
                     if rn and ri and re:
-                        success, msg = db.request_account(rn, ri, re, rl)
+                        success, msg = db.request_account(rn, ri, re, rl, div)
                         if success: st.success("Request logged! Please check your Outlook for approval.")
                         else: st.error(msg)
                 

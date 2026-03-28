@@ -10,41 +10,9 @@ def render():
     with tabs[0]:
         st.subheader("System Users Roster")
         conn = db.get_connection()
-        df_users = pd.read_sql_query("SELECT id, username, role, level, region FROM users", conn)
+        df_users = pd.read_sql_query("SELECT id, username, role, level, region, division FROM users", conn)
         st.dataframe(df_users, use_container_width=True, hide_index=True)
         
-        st.markdown("---")
-        st.subheader("Add New User")
-        
-        with st.form("add_user_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                new_username = st.text_input("Username")
-                new_password = st.text_input("Password", type="password")
-            with col2:
-                new_role = st.selectbox("Role", ["Admin", "Pricing", "Sales"])
-                new_region = st.selectbox("Region", ["ALL", "CN", "EU", "IN", "JP", "KR", "NA", "NM"])
-                new_level = st.selectbox("Level", ["Staff", "L team leader", "C team leader", "G team leader"])
-            
-            submit_user = st.form_submit_button("Create User")
-            
-            if submit_user:
-                if new_username.strip() and new_password.strip():
-                    try:
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            "INSERT INTO users (username, password_hash, role, level, region) VALUES (?, ?, ?, ?, ?)",
-                            (new_username.strip(), new_password.strip(), new_role, new_level, new_region)
-                        )
-                        conn.commit()
-                        db.log_action(st.session_state.username, "Create User", f"Created user {new_username} ({new_role})")
-                        st.success(f"User '{new_username}' has been successfully created!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed to create user. Ensure username is unique. (Error: {e})")
-                else:
-                    st.warning("Please fill in both Username and Password.")
-                    
         st.markdown("---")
         st.subheader("Delete User")
         with st.form("delete_user_form"):
@@ -73,12 +41,50 @@ def render():
                     st.toast(f"User '{user_to_delete}' deleted.", icon="✔️")
                     st.rerun()
 
+        st.subheader("Add New User")
+        
+        with st.form("add_user_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                new_username = st.text_input("Username")
+                new_password = st.text_input("Password", type="password")
+                new_level = st.selectbox("Level", ["Staff", "L team leader", "C team leader", "G team leader"])
+            with col2:
+                new_role = st.selectbox("Role", ["Admin", "Pricing", "Sales"])
+                new_region = st.selectbox("Region", ["ALL", "CN", "EU", "IN", "JP", "KR", "NA", "NM"])
+                new_division = st.selectbox("Division", ["HI", "LT", "AM", "IT"])
+            
+            
+            # Căn giữa nút bấm
+            col_b1, col_b2, col_b3 = st.columns([1, 1, 1])
+            with col_b2:
+                submit_user = st.form_submit_button("Create User", type="primary", use_container_width=True)
+            
+            if submit_user:
+                if new_username.strip() and new_password.strip():
+                    try:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "INSERT INTO users (username, password_hash, role, level, region, division) VALUES (?, ?, ?, ?, ?, ?)",
+                            (new_username.strip(), new_password.strip(), new_role, new_level, new_region, new_division)
+                        )
+                        conn.commit()
+                        db.log_action(st.session_state.username, "Create User", f"Created user {new_username} ({new_role})")
+                        st.success(f"User '{new_username}' has been successfully created!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to create user. Ensure username is unique. (Error: {e})")
+                else:
+                    st.warning("Please fill in both Username and Password.")
+                    
+        st.markdown("---")
+
         conn.close()
 
     with tabs[1]:
         st.subheader("Pending Account Requests")
         conn = db.get_connection()
-        df_reqs = pd.read_sql_query("SELECT id, name, employee_id, email, level, status, created_at FROM account_requests WHERE status = 'Pending'", conn)
+        df_reqs = pd.read_sql_query("SELECT id, name, employee_id, email, level, division, status, created_at FROM account_requests WHERE status = 'Pending'", conn)
         
         if df_reqs.empty:
             st.info("Currently, there are no pending requests.")
@@ -108,6 +114,14 @@ def render():
                     except:
                         def_idx = 0
                     level_assign = st.selectbox("Assign Level", levels, index=def_idx)
+                
+                with col1:
+                    divisions = ["HI", "LT", "AM", "IT"]
+                    try:
+                        div_idx = divisions.index(req_info['division'])
+                    except:
+                        div_idx = 0
+                    division_assign = st.selectbox("Assign Division", divisions, index=div_idx)
                     
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
@@ -133,7 +147,7 @@ def render():
                     try:
                         cursor = conn.cursor()
                         # Add User to system
-                        cursor.execute("INSERT INTO users (username, password_hash, role, level, region) VALUES (?, ?, ?, ?, ?)", (username, temp_password, role_assign, level_assign, region_assign))
+                        cursor.execute("INSERT INTO users (username, password_hash, role, level, region, division) VALUES (?, ?, ?, ?, ?, ?)", (username, temp_password, role_assign, level_assign, region_assign, division_assign))
                         # Change Status
                         cursor.execute("UPDATE account_requests SET status = 'Approved' WHERE id = ?", (int(req_id),))
                         conn.commit()

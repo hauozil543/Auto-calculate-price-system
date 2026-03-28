@@ -29,7 +29,7 @@ def render_pricing_grid():
     with st.form("pricing_batch_calc_form"):
         rows_data = []
         # Headers: 7D, 18D, Name, Reg, Cat, Cost, Yield, Buff1, Buff2, Note2, Action
-        cols = st.columns([2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1])
+        cols = st.columns([2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1])
         headers = ["7D", "18D", "Name", "Reg", "Cat", "Cost", "Yield", "B1%", "B2%", "Note2", ""]
         for i, h in enumerate(headers):
             cols[i].markdown(f"<span style='font-size:11px'><b>{h}</b></span>", unsafe_allow_html=True)
@@ -37,7 +37,7 @@ def render_pricing_grid():
         regions = ["CN", "EU", "IN", "JP", "KR", "NA", "NM"]
         
         for idx, r_id in enumerate(st.session_state[state_key]):
-            cols = st.columns([2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1])
+            cols = st.columns([2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1])
             m7d = cols[0].text_input(f"7d_{r_id}", label_visibility="collapsed")
             m18d = cols[1].text_input(f"18d_{r_id}", label_visibility="collapsed")
             name = cols[2].text_input(f"name_{r_id}", label_visibility="collapsed")
@@ -155,7 +155,8 @@ def render():
         st.info("Process pending quotation requests and missing cost queries to finalize Base Prices for Sales.")
         
         conn = db.get_connection()
-        df_req = pd.read_sql_query("SELECT id, sales_username, material_code, request_type, region, status, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests ORDER BY created_at DESC", conn)
+        # Lọc theo Division của người dùng Pricing hiện tại
+        df_req = pd.read_sql_query("SELECT id, sales_username, material_code, request_type, region, status, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE division = ? ORDER BY created_at DESC", conn, params=(st.session_state.division,))
         
         if df_req.empty:
             st.write("No requests pending.")
