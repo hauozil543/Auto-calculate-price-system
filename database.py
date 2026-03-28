@@ -2,6 +2,7 @@ import sqlite3
 import pandas as pd
 import os
 import datetime
+import json
 
 DB_PATH = "price_database.db"
 
@@ -145,6 +146,22 @@ def init_db():
         cursor.execute("INSERT INTO users (username, password_hash, role, division) VALUES ('pricing_demo', '123456', 'Pricing', 'HI')")
         cursor.execute("INSERT INTO users (username, password_hash, role, division) VALUES ('sales_demo', '123456', 'Sales', 'HI')")
 
+    # Bảng lưu lịch sử Guide Price từ các file Excel mẫu của 4 Division
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS guide_price_historical (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            material_code TEXT,
+            region TEXT,
+            division TEXT,
+            quarter TEXT,
+            pricing_data TEXT, -- Lưu toàn bộ Row dưới dạng JSON để linh hoạt số cột
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(material_code, region, division, quarter) -- Chống trùng lặp
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_hist_mat ON guide_price_historical(material_code)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_hist_div ON guide_price_historical(division)')
+    
     conn.commit()
     conn.close()
 
@@ -257,6 +274,88 @@ def get_cost(material_code):
     df = pd.read_sql_query(query, conn, params=(material_code,))
     conn.close()
     return df
+
+# ==========================================
+# CÁC HÀM LỊCH SỬ GIÁ (HISTORICAL DATA)
+# ==========================================
+
+def import_guide_price_history(excel_file, division):
+    """Nạp dữ liệu lịch sử giá từ Excel vào bảng guide_price_historical."""
+    quarters = ['25.1Q', '25.2Q', '25.3Q', '25.4Q', '26.1Q']
+    try:
+        conn = get_connection()
+        xl = pd.ExcelFile(excel_file)
+        
+        # Chỉ lấy các Sheet khớp với Quý yêu cầu
+        found_sheets = [s for s in xl.sheet_names if any(q in s for q in quarters)]
+        total_rows = 0
+        
+        for sheet in found_sheets:
+            df = pd.read_excel(xl, sheet_name=sheet, keep_default_na=False, na_filter=False)
+            df.columns = df.columns.str.strip()
+            
+            # 1. Tìm cột Mã vật tư (Aliases)
+            alt_mat_cols = ['Material Code', 'Material code', 'material_code', 'Mat 7D', 'Mat 18D', 'ITEM CODE', 'PART NUMBER']
+            mat_col = next((c for c in df.columns if c in alt_mat_cols), None)
+            
+            # 2. Tìm cột Khu vực (Aliases)
+            alt_reg_cols = ['Region', 'region', 'Reg', 'reg', 'REG']
+            reg_col = next((c for c in df.columns if c in alt_reg_cols), None)
+            
+            if not mat_col:
+                continue
+                
+            for _, row in df.iterrows():
+                mat_val = str(row[mat_col]).strip()[:7] if mat_col else "Unknown"
+                reg_val = str(row[reg_col]).strip() if reg_col else "Unknown"
+                
+                # Chuyển đổi toàn bộ Row sang Dict rồi dump thành JSON
+                row_dict = row.to_dict()
+                pricing_json = json.dumps(row_dict, ensure_ascii=False)
+                
+                conn.execute('''
+                    INSERT OR REPLACE INTO guide_price_historical (material_code, region, division, quarter, pricing_data)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (mat_val, reg_val, division, sheet, pricing_json))
+                total_rows += 1
+        
+        conn.commit()
+        conn.close()
+        return True, f"✅ Đã nạp {total_rows} dòng lịch sử cho Division {division} từ {len(found_sheets)} quý."
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return False, f"❌ Lỗi nạp lịch sử ({division}): {e}"
+
+def search_guide_price_history(material_code):
+    """Tìm kiếm lịch sử giá của một mã vật tư qua các quý và Division."""
+    try:
+        conn = get_connection()
+        search_code = str(material_code).strip()[:7]
+        query = "SELECT division, quarter, region, pricing_data FROM guide_price_historical WHERE material_code = ? ORDER BY quarter DESC"
+        df = pd.read_sql_query(query, conn, params=(search_code,))
+        conn.close()
+        
+        if df.empty:
+            return pd.DataFrame()
+            
+        history_list = []
+        for _, row in df.iterrows():
+            item = json.loads(row['pricing_data'])
+            # Đảm bảo các cột chính luôn hiển thị ở đầu
+            fixed_data = {
+                'Division': row['division'],
+                'Quarter': row['quarter'],
+                'Region': row['region']
+            }
+            # Gộp với dữ liệu JSON, ưu tiên các cột chính
+            fixed_data.update(item)
+            history_list.append(fixed_data)
+            
+        return pd.DataFrame(history_list)
+    except Exception as e:
+        print(f"Error searching history: {e}")
+        return pd.DataFrame()
 
 def get_gm_target(category, region):
     """Lấy mục tiêu lợi nhuận gộp từ Database."""

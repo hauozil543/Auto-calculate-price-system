@@ -3,10 +3,6 @@ import pandas as pd
 import database as db
 import datetime
 
-def render():
-    st.header("Pricing Team Dashboard 📊")
-    
-    tabs = st.tabs(["🧮 Quick Calculator", "📨 Special Requests", "⚙️ Database Monitor"])
     
 def render_pricing_grid():
     st.write("Add rows to perform multi-line **Pricing Calculations** with manual overrides and Buffer 2.")
@@ -153,7 +149,7 @@ def render_pricing_grid():
 def render():
     st.header("Pricing Team Dashboard 📊")
     
-    tabs = st.tabs(["🧮 Quick Calculator", "📨 Special Requests", "⚙️ Database Monitor"])
+    tabs = st.tabs(["🧮 Quick Calculator", "📨 Special Requests", "⚙️ Database Monitor", "📜 Price History"])
     
     with tabs[0]:
         render_pricing_grid()
@@ -361,3 +357,36 @@ def render():
                         st.rerun()
                     else:
                         st.error(msg)
+
+    with tabs[3]:
+        st.subheader("📜 Historical Price Management")
+        st.markdown("Use this tab to upload and view historical guide prices across all quarters.")
+        
+        st.divider()
+        st.subheader("📂 Guide Price History Upload (Master)")
+        st.markdown("Select a division and upload historical price files (**25.1Q - 26.1Q**).")
+        
+        h_col1, h_col2 = st.columns([1, 2])
+        target_div = h_col1.selectbox("Division", ["HI", "AM", "IT", "LT"], key="hist_upload_div")
+        uploaded_hist = h_col2.file_uploader(f"Choose Excel for {target_div}", type=["xlsx"])
+        
+        if uploaded_hist and st.button(f"📥 Batch Import {target_div} History", use_container_width=True):
+            with st.spinner(f"Processing {target_div} historical data..."):
+                success, msg = db.import_guide_price_history(uploaded_hist, target_div)
+                if success:
+                    st.success(msg)
+                    st.balloons()
+                else:
+                    st.error(msg)
+
+        st.divider()
+        st.subheader("🔍 Historical Price Lookup")
+        search_mat = st.text_input("Enter 7D Material Code", placeholder="e.g. 7251744", key="hist_search_input")
+        if search_mat:
+            with st.spinner("Retrieving history..."):
+                df_hist = db.search_guide_price_history(search_mat)
+                if not df_hist.empty:
+                    st.write(f"Showing results for: **{search_mat}**")
+                    st.dataframe(df_hist, use_container_width=True)
+                else:
+                    st.info(f"No records found for '{search_mat}'.")

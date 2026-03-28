@@ -1,0 +1,84 @@
+=== DIVISION: AM ===
+Sheet: GP 25.1Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R1', 'GT R2', 'GT R3', 'GT R4', 'GT R5', 'ST R1', 'ST R2', 'ST R3', 'ST R4', 'ST R5']
+Data: [{'Region': 'Exterior', 'Product Line': 'Z5', 'Material Code': 7350449, 'Material Name': 'SZ5-L1-W0-00', 'GP R1 ': 0.24617078901098904, 'GP R2': 0.23945704021978023, 'GP R3': 0.2349812076923077, 'GP R4': 0.22379162637362637, 'GP R5': 0.20141246373626373, 'VP R1': 0.2349812076923077, 'VP R2': 0.2282674589010989, 'VP R3': 0.22379162637362637, 'VP R4': 0.21260204505494504, 'VP R5': 0.19022288241758242, 'GT R1': 0.22793177146153848, 'GT R2': 0.22141943513406592, 'GT R3': 0.2170778775824176, 'GT R4': 0.20622398370329667, 'GT R5': 0.18451619594505494, 'ST R1': 0.22109381831769231, 'ST R2': 0.21477685208004393, 'ST R3': 0.21056554125494506, 'ST R4': 0.20003726419219778, 'ST R5': 0.1789807100667033}]
+--------------------
+Sheet: GP 25.2Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R1', 'GT R2', 'GT R3', 'GT R4', 'GT R5', 'ST R1', 'ST R2', 'ST R3', 'ST R4', 'ST R5']
+Data: [{'Region': 'Exterior', 'Product Line': 'Z5', 'Material Code': 7350449, 'Material Name': 'SZ5-L1-W0-00', 'GP R1 ': 0.27123545116483516, 'GP R2': 0.24863249690109893, 'GP R3': 0.23733101976923077, 'GP R4': 0.22602954263736263, 'GP R5': 0.20342658837362637, 'VP R1': 0.25993397403296703, 'VP R2': 0.23733101976923077, 'VP R3': 0.22602954263736263, 'VP R4': 0.2147280655054945, 'VP R5': 0.19212511124175824, 'GT R1': 0.25213595481197804, 'GT R2': 0.23021108917615385, 'GT R3': 0.21924865635824176, 'GT R4': 0.20828622354032966, 'GT R5': 0.18636135790450548, 'ST R1': 0.2445718761676187, 'ST R2': 0.22330475650086923, 'ST R3': 0.2126711966674945, 'ST R4': 0.20203763683411977, 'ST R5': 0.1807705171673703}]
+--------------------
+Sheet: GP 25.3Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R1', 'GT R2', 'GT R3', 'GT R4', 'GT R5', 'ST R1', 'ST R2', 'ST R3', 'ST R4', 'ST R5']
+Data: [{'Region': 'Exterior', 'Product Line': 'Z5', 'Material Code': 7350449, 'Material Name': 'SZ5-L1-W0-00', 'GP R1 ': 0.2938384054285714, 'GP R2': 0.25993397403296703, 'GP R3': 0.23733101976923077, 'GP R4': 0.22602954263736263, 'GP R5': 0.20342658837362637, 'VP R1': 0.2825369282967033, 'VP R2': 0.24863249690109893, 'VP R3': 0.22602954263736263, 'VP R4': 0.2147280655054945, 'VP R5': 0.19212511124175824, 'GT R1': 0.27406082044780217, 'GT R2': 0.24117352199406594, 'GT R3': 0.21924865635824176, 'GT R4': 0.20828622354032966, 'GT R5': 0.18636135790450548, 'ST R1': 0.2658389958343681, 'ST R2': 0.23393831633424395, 'ST R3': 0.2126711966674945, 'ST R4': 0.20203763683411977, 'ST R5': 0.1807705171673703}]
+--------------------
+Sheet: GP 25.4Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R1', 'GT R2', 'GT R3', 'GT R4', 'GT R5', 'ST R1', 'ST R2', 'ST R3', 'ST R4', 'ST R5']
+Data: [{'Region': 'Exterior', 'Product Line': 'Z5', 'Material Code': 7350449, 'Material Name': 'SZ5-L1-W0-00', 'GP R1 ': 0.3164413596923077, 'GP R2': 0.27123545116483516, 'GP R3': 0.24863249690109893, 'GP R4': 0.22602954263736263, 'GP R5': 0.20342658837362637, 'VP R1': 0.30513988256043956, 'VP R2': 0.25993397403296703, 'VP R3': 0.23733101976923077, 'VP R4': 0.2147280655054945, 'VP R5': 0.19212511124175824, 'GT R1': 0.29598568608362635, 'GT R2': 0.25213595481197804, 'GT R3': 0.23021108917615385, 'GT R4': 0.20828622354032966, 'GT R5': 0.18636135790450548, 'ST R1': 0.28710611550111753, 'ST R2': 0.2445718761676187, 'ST R3': 0.22330475650086923, 'ST R4': 0.20203763683411977, 'ST R5': 0.1807705171673703}]
+--------------------
+Sheet: GP 26.1Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R1', 'GT R2', 'GT R3', 'GT R4', 'GT R5', 'ST R1', 'ST R2', 'ST R3', 'ST R4', 'ST R5']
+Data: [{'Region': 'Exterior', 'Product Line': 'Z5', 'Material Code': 7350449, 'Material Name': 'SZ5-L1-W0-00', 'GP R1 ': 0.34808549566153846, 'GP R2': 0.2983589962813187, 'GP R3': 0.27349574659120884, 'GP R4': 0.24863249690109893, 'GP R5': 0.22376924721098904, 'VP R1': 0.3232222459714286, 'VP R2': 0.27349574659120884, 'VP R3': 0.24863249690109893, 'VP R4': 0.22376924721098904, 'VP R5': 0.19890599752087915, 'GT R1': 0.3070611336728572, 'GT R2': 0.2598209592616484, 'GT R3': 0.23620087205604398, 'GT R4': 0.21258078485043957, 'GT R5': 0.18896069764483517, 'ST R1': 0.2917080769892143, 'ST R2': 0.24682991129856596, 'ST R3': 0.22439082845324176, 'ST R4': 0.2019517456079176, 'ST R5': 0.1795126627625934}]
+--------------------
+=== DIVISION: HI ===
+Sheet: GP 25.1Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R1', 'GT R2', 'GT R3', 'GT R4', 'GT R5', 'ST R1', 'ST R2', 'ST R3', 'ST R4', 'ST R5']
+Data: [{'Region': 'CN', 'Product Line': 'CHIP', 'Material Code': 7840586, 'Material Name': 'CHIP SOC UV500-36 4"', 'GP R1 ': 0.069, 'GP R2': 0.0329, 'GP R3': 0.0199, 'GP R4': 0.0138, 'GP R5': 0.0124, 'VP R1': 0.0621, 'VP R2': 0.0296, 'VP R3': 0.0179, 'VP R4': 0.0124, 'VP R5': 0.0112, 'GT R1': 0.059, 'GT R2': 0.0281, 'GT R3': 0.017, 'GT R4': 0.0118, 'GT R5': 0.0106, 'ST R1': 0.0561, 'ST R2': 0.0267, 'ST R3': 0.0162, 'ST R4': 0.0112, 'ST R5': 0.0101}]
+--------------------
+Sheet: GP 25.2Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R5', 'ST R5']
+Data: [{'Region': 'CN', 'Product Line': 'CHIP', 'Material Code': 7840586, 'Material Name': 'CHIP SOC UV500-36 4"', 'GP R1 ': 0.1012, 'GP R2': 0.0455, 'GP R3': 0.0354, 'GP R4': 0.0253, 'GP R5': 0.0228, 'VP R1': 0.0911, 'VP R2': 0.041, 'VP R3': 0.0319, 'VP R4': 0.0228, 'VP R5': 0.0205, 'GT R5': 0.0195, 'ST R5': 0.0185}]
+--------------------
+Sheet: GP 25.3Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R5', 'ST R5']
+Data: [{'Region': 'CN', 'Product Line': 'CHIP', 'Material Code': 7840586, 'Material Name': 'CHIP SOC UV500-36 4"', 'GP R1 ': 0.1113, 'GP R2': 0.0478, 'GP R3': 0.0354, 'GP R4': 0.0253, 'GP R5': 0.0228, 'VP R1': 0.1002, 'VP R2': 0.043, 'VP R3': 0.0319, 'VP R4': 0.0228, 'VP R5': 0.0205, 'GT R5': 0.0195, 'ST R5': 0.0185}]
+--------------------
+Sheet: GP 25.4Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R5', 'ST R5']
+Data: [{'Region': 'CN', 'Product Line': 'CHIP', 'Material Code': 7840586, 'Material Name': 'CHIP SOC UV500-36 4"', 'GP R1 ': 0.10626, 'GP R2': 0.04807, 'GP R3': 0.036685, 'GP R4': 0.0253, 'GP R5': 0.02277, 'VP R1': 0.095634, 'VP R2': 0.043263, 'VP R3': 0.033017, 'VP R4': 0.02277, 'VP R5': 0.020493, 'GT R5': 0.019468, 'ST R5': 0.018495}]
+--------------------
+Sheet: GP 26.1Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R5', 'ST R5']
+Data: [{'Region': 'CN', 'Product Line': 'CHIP', 'Material Code': 7840586, 'Material Name': 'CHIP SOC UV500-36 4"', 'GP R1 ': 0.13991249999999997, 'GP R2': 0.06329374999999997, 'GP R3': 0.04830312499999998, 'GP R4': 0.03331249999999999, 'GP R5': 0.02998124999999999, 'VP R1': 0.12592124999999998, 'VP R2': 0.05696437499999997, 'VP R3': 0.043472812499999985, 'VP R4': 0.02998124999999999, 'VP R5': 0.026983124999999993, 'GT R5': 0.025633968749999993, 'ST R5': 0.024352270312499993}]
+--------------------
+=== DIVISION: IT ===
+Sheet: GP 25.1Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R4', 'VP R4', 'GT R4', 'ST R4']
+Data: [{'Region': 'I.SS4', 'Product Line': 'Flash', 'Material Code': 7200228, 'Material Name': 'DB003BS', 'GP R4': 0.113176, 'VP R4': 0.106889, 'GT R4': 0.101263, 'ST R4': 0.099175}]
+--------------------
+Sheet: GP 25.2Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R4', 'VP R4', 'GT R4', 'ST R4']
+Data: [{'Region': 'I.SS4', 'Product Line': 'Flash', 'Material Code': 7200228, 'Material Name': 'DB003BS', 'GP R4': 0.14860029000000002, 'VP R4': 0.14034556, 'GT R4': 0.13295842000000002, 'ST R4': 0.13021728}]
+--------------------
+Sheet: GP 25.3Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R4', 'VP R4', 'GT R4', 'ST R4']
+Data: [{'Region': 'I.SS4', 'Product Line': 'Flash', 'Material Code': 7200228, 'Material Name': 'DB003BS', 'GP R4': 0.14860029000000002, 'VP R4': 0.14034556, 'GT R4': 0.13295842000000002, 'ST R4': 0.13021728}]
+--------------------
+Sheet: GP 25.4Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R4', 'VP R4', 'GT R4', 'ST R4']
+Data: [{'Region': 'I.SS4', 'Product Line': 'Flash', 'Material Code': 7200228, 'Material Name': 'DB003BS', 'GP R4': 0.1486, 'VP R4': 0.140346, 'GT R4': 0.132958, 'ST R4': 0.130217}]
+--------------------
+Sheet: GP 26.1Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R4', 'VP R4', 'GT R4', 'ST R4']
+Data: [{'Region': 'I.SS4', 'Product Line': 'Flash', 'Material Code': 7200228, 'Material Name': 'DB003BS', 'GP R4': 0.156325, 'VP R4': 0.14830110984690875, 'GT R4': 0.131642, 'ST R4': 0.128928}]
+--------------------
+=== DIVISION: LT ===
+Sheet: GP 25.1Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'ST R5', 'CIE', 'Quantity range\nClassification', 'Product']
+Data: [{'Region': 'KR', 'Product Line': 'TL/3030', 'Material Code': 7251510, 'Material Name': 'STW7C2SB-NT-E1H1C100(DISTY)', 'GP R1 ': 0.02974100274725275, 'GP R2': 0.029185096153846155, 'GP R3': 0.028351236263736264, 'GP R4': 0.02779532967032967, 'GP R5': 0.026405563186813186, 'VP R1': 0.028351236263736264, 'VP R2': 0.02779532967032967, 'VP R3': 0.02696146978021978, 'VP R4': 0.026405563186813186, 'VP R5': 0.025015796703296705, 'ST R5': 0.024265322802197804, 'CIE': 'ALL', 'Quantity range\nClassification': 'MP 3030', 'Product': 3030}]
+--------------------
+Sheet: GP 25.2Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'ST R5', 'CIE', 'Quantity range\nClassification', 'Product']
+Data: [{'Region': 'KR', 'Product Line': 'TL/3030', 'Material Code': 7251510, 'Material Name': 'STW7C2SB-NT-E1H1C100(DISTY)', 'GP R1 ': 0.03224258241758242, 'GP R2': 0.03154769917582417, 'GP R3': 0.030296909340659345, 'GP R4': 0.029185096153846155, 'GP R5': 0.02682249313186813, 'VP R1': 0.030852815934065938, 'VP R2': 0.030157932692307692, 'VP R3': 0.028907142857142857, 'VP R4': 0.02779532967032967, 'VP R5': 0.02543272664835165, 'ST R5': 0.0246697448489011, 'CIE': 'ALL', 'Quantity range\nClassification': 'MP 3030', 'Product': 3030}]
+--------------------
+Sheet: GP 25.3Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R5', 'ST R5', 'CIE', 'Quantity range\nClassification', 'Product']
+Data: [{'Region': 'KR', 'Product Line': 'TL/3030', 'Material Code': 7251510, 'Material Name': 'STW7C2SB-NT-E1H1C100(DISTY)', 'GP R1 ': 0.03502211538461539, 'GP R2': 0.032937465659340665, 'GP R3': 0.030296909340659345, 'GP R4': 0.029185096153846155, 'GP R5': 0.02682249313186813, 'VP R1': 0.0336323489010989, 'VP R2': 0.03154769917582417, 'VP R3': 0.028907142857142857, 'VP R4': 0.02779532967032967, 'VP R5': 0.02543272664835165, 'GT R5': 0.02543272664835165, 'ST R5': 0.0246697448489011, 'CIE': 'ALL', 'Quantity range\nClassification': 'MP 3030', 'Product': 3030}]
+--------------------
+Sheet: GP 25.4Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R5', 'ST R5', 'CIE', 'Quantity range\nClassification', 'Product']
+Data: [{'Region': 'CN', 'Product Line': '3030 NPR', 'Material Code': 7251744, 'Material Name': 'STW8C12E-E200C0IZP', 'GP R1 ': 0.07689907910606511, 'GP R2': 0.06983114904116941, 'GP R3': 0.06728669421780697, 'GP R4': 0.0593706125451238, 'GP R5': 0.05456442010099473, 'VP R1': 0.07407190708010684, 'VP R2': 0.06700397701521114, 'VP R3': 0.06445952219184871, 'VP R4': 0.05654344051916552, 'VP R5': 0.051737248075036456, 'GT R5': 0.05096118935391091, 'ST R5': 0.05096118935391091, 'CIE': '3Step', 'Quantity range\nClassification': 'MP 3030', 'Product': 3030}]
+--------------------
+Sheet: GP 26.1Q
+Headers: ['Region', 'Product Line', 'Material Code', 'Material Name', 'GP R1 ', 'GP R2', 'GP R3', 'GP R4', 'GP R5', 'VP R1', 'VP R2', 'VP R3', 'VP R4', 'VP R5', 'GT R5', 'ST R5', 'CIE', 'Quantity range\nClassification', 'Product']
+Data: [{'Region': 'CN', 'Product Line': '3030 NPR', 'Material Code': 7251744, 'Material Name': 'STW8C12E-E200C0IZP', 'GP R1 ': 0.07689907910606511, 'GP R2': 0.06983114904116941, 'GP R3': 0.06728669421780697, 'GP R4': 0.0593706125451238, 'GP R5': 0.05456442010099473, 'VP R1': 0.07407190708010684, 'VP R2': 0.06700397701521114, 'VP R3': 0.06445952219184871, 'VP R4': 0.05654344051916552, 'VP R5': 0.051737248075036456, 'GT R5': 0.05096118935391091, 'ST R5': 0.05096118935391091, 'CIE': '3Step', 'Quantity range\nClassification': 'MP 3030', 'Product': 3030}]
+--------------------
