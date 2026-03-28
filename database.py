@@ -1,7 +1,7 @@
 import sqlite3
 import pandas as pd
 import os
-from datetime import datetime
+import datetime
 
 DB_PATH = "price_database.db"
 
@@ -76,24 +76,31 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            custom_id TEXT,
             sales_username TEXT,
             material_code TEXT,
             request_type TEXT,
             status TEXT,
-            actual_yield REAL,
-            base_price REAL,
             region TEXT,
+            division TEXT,
+            base_price REAL,
+            actual_yield REAL,
             final_price REAL,
             range_1 REAL,
             range_2 REAL,
             range_3 REAL,
             range_4 REAL,
             range_5 REAL,
-            division TEXT,
             created_at TIMESTAMP,
             updated_at TIMESTAMP
         )
     ''')
+
+    # Migration: Add custom_id column if it doesn't exist
+    cursor.execute("PRAGMA table_info(requests)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if 'custom_id' not in columns:
+        cursor.execute("ALTER TABLE requests ADD COLUMN custom_id TEXT")
 
     # Bảng Logs
     cursor.execute('''
@@ -143,7 +150,8 @@ def init_db():
 
 def import_excel_to_sqlite(excel_file=r'data_raw\GuidePriceAIRaw.xlsx'):
     """Đọc dữ liệu từ file Excel và đổ vào Database SQLite để chuyển đổi nhanh"""
-    if not os.path.exists(excel_file):
+    # Nếu là chuỗi (đường dẫn), kiểm tra sự tồn tại. Nếu là File object (Streamlit), bỏ qua check này.
+    if isinstance(excel_file, str) and not os.path.exists(excel_file):
         return False, f"Không tìm thấy file {excel_file} để import!"
 
     try:
@@ -154,14 +162,14 @@ def import_excel_to_sqlite(excel_file=r'data_raw\GuidePriceAIRaw.xlsx'):
         cursor.execute("DROP TABLE IF EXISTS standard_products")
         cursor.execute("DROP TABLE IF EXISTS gm_targets")
         cursor.execute("DROP TABLE IF EXISTS price_gaps")
-        cursor.execute("DROP TABLE IF EXISTS costs")
+        cursor.execute("DROP TABLE IF EXISTS baseline_costs")
         conn.commit()
         
         # Khởi tạo lại schema
         init_db()
 
         # 1. Standard Product
-        df_std = pd.read_excel(excel_file, sheet_name='Standard Product')
+        df_std = pd.read_excel(excel_file, sheet_name='Standard Product', keep_default_na=False, na_filter=False)
         df_std.columns = df_std.columns.str.strip()
         df_std = df_std.rename(columns={
             'Category': 'category', 'Type': 'type', 'Materials Name': 'material_name',
@@ -170,43 +178,57 @@ def import_excel_to_sqlite(excel_file=r'data_raw\GuidePriceAIRaw.xlsx'):
         if 'material_code' in df_std.columns:
             df_std['material_code'] = df_std['material_code'].astype(str).str.strip().str[:7]
             df_std = df_std.drop_duplicates(subset=['material_code'], keep='last')
-        df_std.to_sql('standard_products', conn, if_exists='append', index=False)
+        df_std.to_sql('standard_products', conn, if_exists='replace', index=False)
         
         # 2. GM Target
-        df_gm = pd.read_excel(excel_file, sheet_name='GM Target')
+        df_gm = pd.read_excel(excel_file, sheet_name='GM Target', keep_default_na=False, na_filter=False)
         df_gm.columns = df_gm.columns.str.strip()
         df_gm = df_gm.rename(columns={
             'Category': 'category', 'Region': 'region', 'OHC': 'ohc', 'OPM': 'opm', 'GM': 'gm_target'
         })
-        df_gm.to_sql('gm_targets', conn, if_exists='append', index=False)
+        df_gm.to_sql('gm_targets', conn, if_exists='replace', index=False)
 
         # 3. Price Gap
-        df_gap = pd.read_excel(excel_file, sheet_name='Price Gap')
+        df_gap = pd.read_excel(excel_file, sheet_name='Price Gap', keep_default_na=False, na_filter=False)
         df_gap.columns = df_gap.columns.str.strip()
         df_gap = df_gap.rename(columns={
             'Category': 'category', 'Range': 'range_name', 'Gap': 'gap_ratio'
         })
-        df_gap.to_sql('price_gaps', conn, if_exists='append', index=False)
+        df_gap.to_sql('price_gaps', conn, if_exists='replace', index=False)
 
-        # 4. Cost
-        df_cost = pd.read_excel(excel_file, sheet_name='Cost')
+        # 4. Cost (Flexible sheet name matching)
+        all_sheets = pd.ExcelFile(excel_file).sheet_names
+        cost_sheet = next((s for s in all_sheets if s.lower().strip() in ['cost', 'costs', 'baseline cost', 'baseline costs']), 'Cost')
+        
+        df_cost = pd.read_excel(excel_file, sheet_name=cost_sheet, keep_default_na=False, na_filter=False)
         df_cost.columns = df_cost.columns.str.strip()
         df_cost = df_cost.rename(columns={
-            'Material Code': 'material_code', 
+            'Material Code': 'material_code', 'material code': 'material_code', 'Material code': 'material_code',
+            'Region': 'region', 'region': 'region', 'Reg': 'region', 'reg': 'region',
             'Material Description': 'material_description', 
             '26.1Q Cost': 'q26_1_cost',
             '26.2Q Cost': 'q26_2_cost',
-            '26.2Q Cost Unified': 'cost_unified'
+            '26.2Q Cost Unified': 'cost',
+            'Final Cost': 'cost'
         })
+        
+        # Strip string columns to ensure clean matching
+        for col in ['material_code', 'region']:
+            if col in df_cost.columns:
+                df_cost[col] = df_cost[col].astype(str).str.strip()
+                
         if 'material_code' in df_cost.columns:
-            df_cost['material_code'] = df_cost['material_code'].astype(str).str.strip().str[:7]
-        if 'cost_unified' in df_cost.columns:
-            df_cost['cost_unified'] = pd.to_numeric(df_cost['cost_unified'], errors='coerce').fillna(0)
+            df_cost['material_code'] = df_cost['material_code'].str[:7]
             
-        if 'material_code' in df_cost.columns:
-            df_cost = df_cost.drop_duplicates(subset=['material_code'], keep='last')
+            # Determine available columns for duplicate dropping
+            subset_cols = ['material_code']
+            if 'region' in df_cost.columns:
+                subset_cols.append('region')
+                
+            df_cost = df_cost.drop_duplicates(subset=subset_cols, keep='last')
             
-        df_cost.to_sql('costs', conn, if_exists='append', index=False)
+        # Final: Save to 'baseline_costs' to match calculation logic!
+        df_cost.to_sql('baseline_costs', conn, if_exists='replace', index=False)
 
         conn.commit()
         conn.close()
@@ -237,7 +259,7 @@ def get_cost(material_code):
     return df
 
 def get_gm_target(category, region):
-    """Lấy số tỷ lệ GM từ DB."""
+    """Lấy mục tiêu lợi nhuận gộp từ Database."""
     conn = get_connection()
     query = "SELECT gm_target FROM gm_targets WHERE category = ? AND region = ?"
     cursor = conn.cursor()
@@ -247,11 +269,7 @@ def get_gm_target(category, region):
     return result[0] if result else 0.0
 
 def get_price_gaps(category):
-    """Lấy dict phần trăm Price Gap."""
-    conn = get_connection()
-    query = "SELECT range_name, gap_ratio FROM price_gaps WHERE category = ?"
-    df = pd.read_sql_query(query, conn, params=(category,))
-    conn.close()
+    """Lấy danh sách Gap của từng Category."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT range_name, gap_ratio FROM price_gaps WHERE category = ?", (category,))
@@ -263,6 +281,84 @@ def get_price_gaps(category):
         gaps[r[0]] = float(r[1])
     return gaps
 
+def calculate_full_pricing_suite(category, region, cost, yields=1.0, b1=None, b2=0.0):
+    """
+    Bộ não tính toán giá tập trung (Central Calculation Engine).
+    Kết quả trả về dictionary chứa toàn bộ các mức giá GP, VP, GT, ST.
+    1. GP_Base = ((1 + B1) * (Cost / Yield)) / (1 - GM)
+    2. GP_Range_n = GP_Base * (1 + Gap_multiplier) * (1 + B2)
+    """
+    # 1. Lấy mục tiêu GM
+    target_gm = get_gm_target(category, region)
+    
+    # 2. Lấy Buffer 1 từ DB (nếu không có sẵn)
+    if b1 is None:
+        conn = get_connection()
+        prod_df = pd.read_sql_query("SELECT buffer FROM standard_products WHERE category = ?", conn, params=(category,))
+        conn.close()
+        b1 = float(prod_df['buffer'].iloc[0]) if not prod_df.empty else 0.0
+        
+    # 3. Tính giá GP Base
+    gp_base = 0.0
+    if 0 < target_gm < 1 and cost > 0 and yields > 0:
+        gp_base = ((1 + b1) * (cost / yields)) / (1 - target_gm)
+        
+    # 4. Lấy danh sách Gap
+    gaps = get_price_gaps(category)
+    
+    # 5. Tính toán các Range
+    results = {
+        "gp_base": gp_base,
+        "target_gm": target_gm,
+        "buffer_1": b1,
+        "yields": yields
+    }
+    
+    for i in range(1, 6):
+        gap_val = gaps.get(f"Range {i}", 0.0)
+        # Công thức: GP_n = GP_Base * (1 + Gap) * (1 + B2)
+        gp_n = gp_base * (1 + gap_val) * (1 + b2)
+        vp_n = gp_n * 0.95
+        
+        results[f"gp_r{i}"] = gp_n
+        results[f"vp_r{i}"] = vp_n
+        
+        if i == 5:
+            # GT/ST tính từ mức VP cao nhất (Range 5)
+            gt = vp_n * 0.95
+            st = gt * 0.95
+            results["gt"] = gt
+            results["st"] = st
+            
+    return results
+
+
+def generate_request_id(division, region):
+    """
+    Tạo Request ID định dạng: Division-Region-YYYYMMDD-STT (Tự động reset mỗi ngày)
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Lấy ngày hiện tại
+    today_str = datetime.datetime.now().strftime("%Y%m%d")
+    
+    # Đếm số yêu cầu đã tạo trong ngày hôm nay (tính từ 00:00:00)
+    cursor.execute('''
+        SELECT COUNT(*) FROM requests 
+        WHERE date(created_at) = date('now')
+    ''')
+    count = cursor.fetchone()[0]
+    conn.close()
+    
+    # Số thứ tự tiếp theo (định dạng 3 chữ số: 001, 002...)
+    new_sequence = count + 1
+    
+    # Lắp ghép mã: HI-CN-20260328-001
+    custom_id = f"{division}-{region}-{today_str}-{new_sequence:03d}"
+    
+    return custom_id
+
 def log_action(username, action, details):
     """Ghi log hành vi hệ thống."""
     conn = get_connection()
@@ -270,7 +366,7 @@ def log_action(username, action, details):
     cursor.execute('''
         INSERT INTO logs (username, action, details, timestamp)
         VALUES (?, ?, ?, ?)
-    ''', (username, action, details, datetime.now()))
+    ''', (username, action, details, datetime.datetime.now()))
     conn.commit()
     conn.close()
 
@@ -282,7 +378,7 @@ def request_account(name, employee_id, email, level, division):
         cursor.execute('''
             INSERT INTO account_requests (name, employee_id, email, level, division, status, created_at)
             VALUES (?, ?, ?, ?, ?, 'Pending', ?)
-        ''', (name, employee_id, email, level, division, datetime.now()))
+        ''', (name, employee_id, email, level, division, datetime.datetime.now()))
         conn.commit()
         return True, "✅ Yêu cầu cấp tài khoản đã được gửi thành công!"
     except sqlite3.IntegrityError:
