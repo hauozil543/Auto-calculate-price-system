@@ -151,7 +151,7 @@ def render_login():
                         else: st.error(msg)
                 
                 # Back button as simple text too
-                if st.button("⬅ Back to Login", key="back_to_login"):
+                if st.button("Back to Login", key="back_to_login"):
                     st.session_state.login_view = 'signin'
                     st.rerun()
 

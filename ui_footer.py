@@ -38,13 +38,13 @@ def render():
             <span>© Auto-reply sales price request system</span>
         </div>
         <div class="footer-item">
-            <span>🚀 Performance Boost</span>
+            <span>Performance Boost</span>
         </div>
         <div class="footer-item">
-            <span>🛡️ Secure System</span>
+            <span>Secure System</span>
         </div>
         <div class="footer-item">
-            <span>📧 709432@seoulsemicon.com</span>
+            <span>709432@seoulsemicon.com</span>
         </div>
     </div>
     """
