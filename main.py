@@ -1,8 +1,73 @@
 import streamlit as st
 import auth
 
+# ==========================================
+# 🎨 CENTRAL THEME CONFIGURATION (CHỈ CẦN SỬA Ở ĐÂY)
+# ==========================================
+APP_THEME_COLOR = "#0df27e"  # Màu chính cho nút bấm, tab, hover...
+APP_BG_COLOR = "#dafdf4"     # Màu nền cho toàn bộ ứng dụng
+# ==========================================
+
 # Page configuration (must be the first Streamlit call)
-st.set_page_config(page_title="Price Calculator App", page_icon="🧮", layout="wide")
+st.set_page_config(page_title="Price Calculator App", page_icon="", layout="wide")
+
+# Global Theme Injection (Apply across and override secondary elements)
+st.markdown(f"""
+    <style>
+        /* 1. TOTAL ENFORCEMENT FOR ALL PRIMARY BUTTONS (Xóa sạch màu đỏ) */
+        button[kind="primary"], 
+        button[data-testid="stBaseButton-primary"],
+        div.stButton button:first-child[data-testid*="primary"] {{ 
+            background-color: {APP_THEME_COLOR} !important;
+            background-image: none !important;
+            border-color: {APP_THEME_COLOR} !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            box-shadow: none !important;
+        }}
+        
+        button[kind="primary"]:hover, 
+        button[data-testid="stBaseButton-primary"]:hover {{
+            background-color: {APP_THEME_COLOR} !important;
+            opacity: 0.9;
+            border-color: {APP_THEME_COLOR} !important;
+            box-shadow: 0 4px 12px rgba(13,242,126,0.3) !important;
+        }}
+        
+        /* 2. ALL TABS - Text & Underline */
+        [data-testid="stTabs"] button[aria-selected="true"] p {{
+            color: #1a1a1a !important;
+            font-weight: 700 !important;
+        }}
+        [data-testid="stTabs"] button[aria-selected="true"] {{
+            border-bottom: 3px solid {APP_THEME_COLOR} !important;
+        }}
+        [data-testid="stTabs"] button:hover p {{
+            color: {APP_THEME_COLOR} !important;
+        }}
+        
+        /* 3. GLOBAL BACKGROUND (Màu nền toàn tập) */
+        [data-testid="stAppViewContainer"] {{
+            background-color: {APP_BG_COLOR} !important;
+        }}
+        
+        /* 4. HYPERLINKS & TEXT HOVER (Di chuột vào chữ đổi màu) */
+        button[data-testid*="toggle_login_state"]:hover, 
+        button[key*="back_to_login"]:hover,
+        div.stButton > button:not([kind="primary"]):hover,
+        a:hover {{
+            color: {APP_THEME_COLOR} !important;
+            text-decoration: underline !important;
+            background-color: transparent !important;
+        }}
+        
+        /* Tinh chỉnh các input focus */
+        .stTextInput > div > div:focus-within {{
+            border-color: {APP_THEME_COLOR} !important;
+            box-shadow: 0 0 0 1px {APP_THEME_COLOR} !important;
+        }}
+    </style>
+""", unsafe_allow_html=True)
 
 import streamlit.components.v1 as components
 
@@ -23,116 +88,54 @@ def delete_cookie_js(name):
         </script>
     """, height=0)
 
-def login_screen():
-    st.title("Welcome to Price Calculator App")
-    st.markdown("---")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        tabs = st.tabs(["🔐 Login", "📝 Request Account"])
-        
-        with tabs[0]:
-            st.subheader("Login to your account")
-            with st.form("login_form"):
-                username = st.text_input("Username")
-                password = st.text_input("Password", type="password")
-                remember_me = st.checkbox("Ghi nhớ đăng nhập (30 ngày)")
-                submit_login = st.form_submit_button("Login", use_container_width=True)
-                
-                if submit_login:
-                    if auth.login(username, password):
-                        st.success(f"Logged in successfully as {username}!")
-                        if remember_me:
-                            set_cookie_js('remember_token', username)
-                            st.query_params["u"] = username
-                        st.rerun()
-                    else:
-                        st.error("Invalid username or password. Please try again.")
-            
-            st.info("**Demo Accounts:**\n- Admin: `admin` / `admin123`\n- Pricing: `pricing_demo` / `123456`\n- Sales: `sales_demo` / `123456`")
-            
-        with tabs[1]:
-            st.subheader("Request New Account")
-            st.write("Don't have an account? Request one from Admin.")
-            with st.form("request_account_form", clear_on_submit=True):
-                req_name = st.text_input("Full Name")
-                req_id = st.text_input("Employee ID / Username")
-                req_email = st.text_input("Outlook Email")
-                req_level = st.selectbox("Position/Level", ["Staff", "L team leader", "C team leader", "G team leader"])
-                submit_req = st.form_submit_button("Submit Request", use_container_width=True)
-                
-                if submit_req:
-                    if req_name and req_id and req_email:
-                        import database as db
-                        success, message = db.request_account(req_name, req_id, req_email, req_level)
-                        if success:
-                            st.success("Request sent! You will receive your password via Outlook email once approved.")
-                        else:
-                            st.error(message)
-                    else:
-                        st.warning("Please fill in all fields.")
-
 def render_sidebar():
     with st.sidebar:
         st.title(f"Hello, {st.session_state.username} 👋")
         st.caption(f"Role: **{st.session_state.role}**")
         st.divider()
         
-        st.divider()
         if st.button("🚪 Logout", use_container_width=True):
             delete_cookie_js('remember_token')
-            if "u" in st.query_params:
-                del st.query_params["u"]
+            st.query_params.clear()
             auth.logout()
             st.rerun()
 
 def main():
-    # 1. Initialize session state
     auth.init_session_state()
     
-    # 2. Check for Auto-Login (Query Params - fastest)
-    if not st.session_state.logged_in:
+    if not st.session_state.logged_in and not st.session_state.get('just_logged_out'):
         q_user = st.query_params.get("u")
         if q_user:
             if auth.login_by_username(q_user):
                 st.rerun()
 
-    # 3. Check for Auto-Login (Native Cookies)
-    if not st.session_state.logged_in:
-        # st.context.cookies is available in 1.55.0
+    if not st.session_state.logged_in and not st.session_state.get('just_logged_out'):
         token = st.context.cookies.get('remember_token')
         if token:
             if auth.login_by_username(token):
-                # Sync query param for easier F5 next time
                 st.query_params["u"] = token
                 st.rerun()
 
-    # 4. Render UI
     if not st.session_state.logged_in:
-        login_screen()
+        import ui_login
+        ui_login.render_login()
     else:
-        # Load sidebar navigation
         render_sidebar()
-        
-        # Render Role-based UI modules
         if st.session_state.role == "Admin":
             import ui_admin
             ui_admin.render()
-            
         elif st.session_state.role == "Pricing":
             import ui_pricing
             ui_pricing.render()
-            
         elif st.session_state.role == "Sales":
             import ui_sales
             ui_sales.render()
-            
         else:
             st.error("Error: Role permission not recognized!")
             
-    # Always render footer at the bottom
     import ui_footer
     ui_footer.render()
 
 if __name__ == "__main__":
     main()
+

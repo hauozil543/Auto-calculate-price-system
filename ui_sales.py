@@ -60,7 +60,7 @@ def render_grid(tab_type, tab_name):
                 "Target Price (USD)": target
             })
             
-        submit_btn_label = "Calculate Standard Guide Prices" if tab_type == 'std' else "Send Batch Single BIN Requests to Pricing"
+        submit_btn_label = "Calculate Standard Guide Prices" if tab_type == 'std' else "Send Batch Selected BIN Requests to Pricing"
         submit_calc = st.form_submit_button(submit_btn_label, type="primary", use_container_width=True)
         
     if submit_calc:
@@ -141,7 +141,15 @@ def render_grid(tab_type, tab_name):
                     r["VP Range 2"] = f"${gp_r2 * 0.95:.4f}"
                     r["VP Range 3"] = f"${gp_r3 * 0.95:.4f}"
                     r["VP Range 4"] = f"${gp_r4 * 0.95:.4f}"
-                    r["VP Range 5"] = f"${gp_r5 * 0.95:.4f}"
+                    vp_r5 = gp_r5 * 0.95
+                    r["VP Range 5"] = f"${vp_r5:.4f}"
+                    
+                    # GT/ST Logic (Only for G team leaders)
+                    if st.session_state.get('level') == "G team leader":
+                        gt_price = vp_r5 * 0.95
+                        st_price = gt_price * 0.95
+                        r["GT Price"] = f"${gt_price:.4f}"
+                        r["ST Price"] = f"${st_price:.4f}"
                     
                     # Save the successfully auto-calculated Standard BIN request into history
                     try:
@@ -173,7 +181,7 @@ def render_grid(tab_type, tab_name):
                     
                 r["Guide Price"] = guide_price
             else:
-                # Single BIN Logic Workflow (Send Request to Pricing)
+                # Selected BIN Logic Workflow (Send Request to Pricing)
                 target_gm = db.get_gm_target(cat_val, reg_val)
                 if target_gm <= 0:
                     st.error(f"Row {idx + 1}: Failed to route to Pricing. No GM Target mapping found for Category '{cat_val}' and Region '{reg_val}'.")
@@ -188,11 +196,11 @@ def render_grid(tab_type, tab_name):
                     cursor = conn.cursor()
                     cursor.execute('''
                         INSERT INTO requests (sales_username, material_code, request_type, status, region, created_at, updated_at)
-                        VALUES (?, ?, 'Single Bin', ?, ?, ?, ?)
+                        VALUES (?, ?, 'Selected Bin', ?, ?, ?, ?)
                     ''', (st.session_state.username, mat7d_val[:7], status_val, reg_val, datetime.datetime.now(), datetime.datetime.now()))
                     conn.commit()
                     r["Submission Status"] = f"Success ({status_val})"
-                    db.log_action(st.session_state.username, "New Request", f"Sales requested Single BIN for {mat7d_val}")
+                    db.log_action(st.session_state.username, "New Request", f"Sales requested Selected BIN for {mat7d_val}")
                 except Exception as e:
                     r["Submission Status"] = f"Failed DB Error"
                     st.error(f"Row {idx+1} Failed: {e}")
@@ -224,23 +232,33 @@ def render():
     with tabs[0]:
         st.subheader("Batch Request Interface")
         
-        calc_tabs = st.tabs(["Standard Bin", "Single Bin"])
+        calc_tabs = st.tabs(["Standard Bin", "Selected Bin"])
         
         with calc_tabs[0]:
             render_grid('std', 'Standard BIN')
 
         with calc_tabs[1]:
-            render_grid('sel', 'Single BIN')
+            render_grid('sel', 'Selected BIN')
 
     with tabs[1]:
         st.subheader("My Request History")
         conn = db.get_connection()
         df_my_reqs = pd.read_sql_query("SELECT id, material_code, request_type, region, status, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE sales_username = ? ORDER BY created_at DESC", conn, params=(st.session_state.username,))
         conn.close()
-        
+
         if df_my_reqs.empty:
             st.info("Historical requests for Cost / Yield Updates sent to the Pricing team will appear here.")
         else:
+            # Status color styling function
+            def style_status_col(val):
+                if val in ['Completed', 'Approved', 'Completed (Auto)']:
+                    return 'color: #28a745; font-weight: bold;' # Green
+                elif 'Pending' in val or val == 'Waiting':
+                    return 'color: #fd7e14; font-weight: bold;' # Orange
+                elif val in ['Rejected', 'Error']:
+                    return 'color: #dc3545; font-weight: bold;' # Red
+                return ''
+
             # Calculate VP Ranges on the fly for history view
             rename_dict = {}
             for i in range(1, 6):
@@ -249,14 +267,37 @@ def render():
             
             # Rename all GP columns at once
             df_my_reqs = df_my_reqs.rename(columns=rename_dict)
-                
-            st.dataframe(df_my_reqs, use_container_width=True, hide_index=True)
+
+            # Privileged Pricing (GT/ST)
+            if st.session_state.get('level') == "G team leader":
+                df_my_reqs['GT Price'] = df_my_reqs['VP Range 5'] * 0.95
+                df_my_reqs['ST Price'] = df_my_reqs['GT Price'] * 0.95
             
+            st.write("💡 *Review statuses below (colored text). To export specific items, select their IDs in the box below.*")
+            
+            # 1. Colored Display (STABLE)
+            st.dataframe(
+                df_my_reqs.style.map(style_status_col, subset=['status']),
+                use_container_width=True,
+                hide_index=True,
+            )
+            
+            # 2. Selection for Export
+            all_ids = df_my_reqs['id'].tolist()
+            selected_ids = st.multiselect("Select Request IDs to Export:", options=all_ids, placeholder="Leave empty to export all", key="sel_sales_hist")
+
+            # Selection Logic
+            df_to_export = df_my_reqs[df_my_reqs['id'].isin(selected_ids)] if selected_ids else df_my_reqs
+
             # Export History
-            csv_hist = df_my_reqs.to_csv(index=False).encode('utf-8-sig')
+            csv_hist = df_to_export.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                label="📥 Export History to CSV",
+                label=f"📥 Export {'Selected' if selected_ids else 'All'} History to CSV",
                 data=csv_hist,
                 file_name=f"request_history_{st.session_state.username}_{datetime.datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
+                key="dl_btn_sales_final"
             )
+
+
+

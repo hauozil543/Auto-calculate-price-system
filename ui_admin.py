@@ -83,7 +83,11 @@ def render():
         if df_reqs.empty:
             st.info("Currently, there are no pending requests.")
         else:
-            st.dataframe(df_reqs, use_container_width=True, hide_index=True)
+            # Color coding function
+            def style_status_col(val):
+                return 'color: #fd7e14; font-weight: bold;' if val == 'Pending' else 'color: #28a745; font-weight: bold;'
+                
+            st.dataframe(df_reqs.style.map(style_status_col, subset=['status']), use_container_width=True, hide_index=True)
             
             st.markdown("---")
             st.subheader("Approve & Provision Account")
@@ -167,8 +171,25 @@ def render():
         if df_logs.empty:
             st.info("No logs generated yet.")
         else:
+            st.write("💡 *System logs (Latest 100 entries)*")
             st.dataframe(df_logs, use_container_width=True, hide_index=True)
             
+            # Selection for export
+            all_log_ids = df_logs['id'].tolist()
+            selected_log_ids = st.multiselect("Select Log IDs to Export:", options=all_log_ids)
+
+            # Selection-based export
+            df_export_logs = df_logs[df_logs['id'].isin(selected_log_ids)] if selected_log_ids else df_logs
+            
+            csv_logs = df_export_logs.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label=f"📥 Export {'Selected' if selected_log_ids else 'All'} Logs to CSV",
+                data=csv_logs,
+                file_name=f"system_logs_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+
+
         if st.button("Refresh Logs"):
             st.rerun()
             

@@ -27,6 +27,8 @@ def login(username, password):
         st.session_state.role = user[0]
         st.session_state.region = user[1] if user[1] else "ALL"
         st.session_state.level = user[2]
+        # Clear the logout guard upon successful login
+        st.session_state.just_logged_out = False
         db.log_action(username, "Login", "User logged in successfully")
         return True
     return False
@@ -45,15 +47,20 @@ def login_by_username(username):
         st.session_state.role = user[0]
         st.session_state.region = user[1] if user[1] else "ALL"
         st.session_state.level = user[2]
+        # Clear the logout guard upon successful auto-login
+        st.session_state.just_logged_out = False
         db.log_action(username, "Auto-Login", "User logged in via Cookie")
         return True
     return False
 
 def logout():
-    if st.session_state.username:
+    """Perform a deep session cleanup and set a logout guard."""
+    if st.session_state.get('username'):
         db.log_action(st.session_state.username, "Logout", "User logged out")
+    
+    # Clear all session variables
+    st.session_state.clear()
+    
+    # Set a guard flag to prevent immediate auto-login from URL/Cookies in the same session
+    st.session_state.just_logged_out = True
     st.session_state.logged_in = False
-    st.session_state.username = None
-    st.session_state.role = None
-    st.session_state.region = None
-    st.session_state.level = None
