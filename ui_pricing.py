@@ -272,13 +272,27 @@ def render():
         st.subheader("Historical Price Lookup")
         f_col1, f_col2, f_col3, f_col4 = st.columns(4)
         s_mat = f_col1.text_input("7D Material Code", placeholder="e.g. 7251744", key="s_hist_mat")
-        s_reg = f_col2.selectbox("Region", [""] + ["CN", "EU", "IN", "JP", "KR", "NA", "NM"], key="s_hist_reg")
-        s_div = f_col3.selectbox("Division", [""] + ["HI", "AM", "IT", "LT"], key="s_hist_div")
+        s_div = f_col2.selectbox("Division", [""] + ["HI", "AM", "IT", "LT"], key="s_hist_div")
+        
+        conn = db.get_connection()
+        if s_div:
+            c = conn.cursor()
+            c.execute("SELECT DISTINCT region FROM guide_price_historical WHERE division = ?", (s_div,))
+            regs = sorted([r[0] for r in c.fetchall() if r[0] and r[0] != "Unknown"])
+        else:
+            c = conn.cursor()
+            c.execute("SELECT DISTINCT region FROM guide_price_historical")
+            regs = sorted([r[0] for r in c.fetchall() if r[0] and r[0] != "Unknown"])
+        conn.close()
+        
+        s_reg = f_col3.selectbox("Region", [""] + regs, key="s_hist_reg")
+            
         s_qtr = f_col4.selectbox("Quarter", [""] + ["25.1Q", "25.2Q", "25.3Q", "25.4Q", "26.1Q"], key="s_hist_qtr")
 
         if st.button("Search History", use_container_width=True):
             with st.spinner("Searching..."):
-                df_hist = db.search_guide_price_history(s_mat if s_mat else None, s_reg if s_reg else None, s_qtr if s_qtr else None, s_div if s_div else None)
+                actual_reg = s_reg if s_reg else None
+                df_hist = db.search_guide_price_history(s_mat if s_mat else None, actual_reg, s_qtr if s_qtr else None, s_div if s_div else None)
                 if not df_hist.empty:
                     st.write(f"Results ({len(df_hist)} records):")
                     st.dataframe(df_hist, use_container_width=True)

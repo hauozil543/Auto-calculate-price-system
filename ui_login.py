@@ -129,12 +129,13 @@ def render_login():
 
                 if st.button("Signin", use_container_width=True, type="primary"):
                     if auth.login(u, p):
+                        if rem:
+                            st.session_state.set_cookie = True
+                            st.session_state.cookie_u = u
                         st.success("Access Granted. Redirecting...")
                         st.rerun()
                     else:
                         st.error("Authentication failed. Please check your credentials.")
-                
-                
                 
             else:
                 rn = st.text_input("Full Name")
@@ -171,13 +172,16 @@ def render_login():
             st.markdown(f"""
                 <div style="background: linear-gradient(135deg, #09bc8a 0%, #0077b6 100%); 
                             padding: 60px 40px; border-radius: 20px; color: white; height: 550px; 
-                            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-                            text-align: center; box-shadow: 0 15px 35px rgba(9,188,138,0.2);">
-                    <h2 style="color: white !important; font-size: 32px; font-weight: 700; margin-bottom: 20px;">Welcome back!</h2>
-                    <p style="color: rgba(255,255,255,0.9) !important; font-size: 16px; line-height: 1.6;">
-                        NexusPrice: Advanced Sales Pricing & Intelligence System.<br><br>
-                        Process pricing requests quickly, accurately and save time for everyone involved.
-                    </p>
+                            display: flex; flex-direction: column; justify-content: center; 
+                            box-shadow: 0 15px 35px rgba(9,188,138,0.2);">
+                    <h2 style="color: white !important; font-size: 32px; font-weight: 700; margin-bottom: 20px; text-align: center;">Welcome back!</h2>
+                    <div style="color: rgba(255,255,255,0.9) !important; font-size: 15px; line-height: 1.5; text-align: left; width: 100%;">
+                        <p style="margin-bottom: 12px;"><b>• Real-time Pricing Intelligence:</b> Automatically generate full pricing suites (GP/VP/GT/ST) with high precision.</p>
+                        <p style="margin-bottom: 12px;"><b>• Smart Approval Logic:</b> Instantly evaluate Target Prices against dynamic thresholds for faster quote turnarounds.</p>
+                        <p style="margin-bottom: 12px;"><b>• Comprehensive History Tracking:</b> Search and analyze historical price data with advanced multi-dimensional filtering.</p>
+                        <p style="margin-bottom: 12px;"><b>• Efficiency at Scale:</b> Batch process massive requests and update master cost databases in seconds.</p>
+                        <p style="margin-bottom: 12px;"><b>• Secure Collaboration:</b> Specialized dashboards tailored for Sales, Pricing, and Admin team workflows.</p>
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
 

@@ -141,7 +141,7 @@ def search_guide_price_history(material_code=None, region=None, quarter=None, di
         conditions, params = [], []
         if material_code: conditions.append("material_code = ?"); params.append(str(material_code).strip()[:7])
         if region: conditions.append("region = ?"); params.append(region)
-        if quarter: conditions.append("quarter = ?"); params.append(quarter)
+        if quarter: conditions.append("quarter LIKE ?"); params.append(f"%{quarter}%")
         if division: conditions.append("division = ?"); params.append(division)
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
         df = pd.read_sql_query(f"SELECT division, quarter, region, pricing_data FROM guide_price_historical {where} ORDER BY quarter DESC LIMIT 1000", conn, params=params)

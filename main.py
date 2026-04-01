@@ -60,12 +60,7 @@ st.markdown(f"""
 
 import streamlit.components.v1 as components
 
-def delete_cookie_js(name):
-    components.html(f"""
-        <script>
-            document.cookie = "{name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-        </script>
-    """, height=0)
+
 
 def render_sidebar():
     with st.sidebar:
@@ -73,13 +68,44 @@ def render_sidebar():
         st.caption(f"Role: {st.session_state.role}")
         st.divider()
         if st.button("Logout", use_container_width=True):
-            delete_cookie_js('remember_token')
             st.query_params.clear()
             auth.logout()
+            # Set this AFTER auth.logout() because it clears session state
+            st.session_state.delete_cookie = True
             st.rerun()
 
 def main():
+    is_deleting = st.session_state.get("delete_cookie", False)
+    if is_deleting:
+        import streamlit.components.v1 as components
+        components.html("""
+            <script>
+                document.cookie = "remember_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            </script>
+        """, height=0)
+        st.session_state.delete_cookie = False
+
+    if st.session_state.get("set_cookie", False):
+        import streamlit.components.v1 as components
+        u = st.session_state.cookie_u
+        components.html(f"""
+            <script>
+                var d = new Date(); d.setTime(d.getTime() + (30*24*60*60*1000));
+                document.cookie = "remember_token={u}; expires=" + d.toUTCString() + "; path=/;";
+            </script>
+        """, height=0)
+        st.session_state.set_cookie = False
+
     auth.init_session_state()
+    
+    if not st.session_state.logged_in and not st.session_state.get('just_logged_out', False) and not is_deleting:
+        try:
+            token = st.context.cookies.get("remember_token")
+            if token:
+                auth.login_by_username(token)
+        except Exception:
+            pass
+
     if not st.session_state.logged_in:
         import ui_login
         ui_login.render_login()
