@@ -100,6 +100,11 @@ def render_grid(tab_type, tab_name):
                     continue
                 cat_val = cat_val
 
+            target_str = r.get("Target Price (USD)", "").replace("$", "").replace(",", "").strip()
+            try: target_val = float(target_str)
+            except: target_val = 0.0
+            appr_level = "N/A"
+
             if tab_type == 'std':
                 cost_df = db.get_cost(mat7d_val[:7])
                 base_cost = cost_df['cost'].iloc[0] if not cost_df.empty else 0.0
@@ -107,8 +112,22 @@ def render_grid(tab_type, tab_name):
                 gp_val = p_suite["gp_base"]
                 
                 if gp_val > 0:
+                    if target_val > 0:
+                        if target_val >= p_suite['gp_r5']:
+                            appr_level = "GP Level (Auto Approved)"
+                        elif target_val >= p_suite['vp_r5']:
+                            appr_level = "VP Level (Auto Approved)"
+                        elif target_val >= p_suite['gt']:
+                            appr_level = "GT Leader Approval"
+                        else:
+                            appr_level = "Pricing Team Approval"
+                    
+                    r["Target Price (USD)"] = f"${target_val:.4f}" if target_val > 0 else ""
+                    r["Approval Level"] = appr_level
+                    
                     for i in range(1, 6):
                         r[f"GP Range {i}"] = f"${p_suite[f'gp_r{i}']:.4f}"
+                    for i in range(1, 6):
                         r[f"VP Range {i}"] = f"${p_suite[f'vp_r{i}']:.4f}"
                     if st.session_state.get('level') == "G team leader":
                         r["GT Price"] = f"${p_suite['gt']:.4f}"
@@ -117,7 +136,7 @@ def render_grid(tab_type, tab_name):
                     try:
                         new_id = db.generate_request_id(r["Division"], reg_val)
                         cursor = conn.cursor()
-                        cursor.execute("INSERT INTO requests (custom_id, sales_username, material_code, request_type, status, region, base_price, final_price, range_1, range_2, range_3, range_4, range_5, division, created_at, updated_at) VALUES (?, ?, ?, 'Standard Bin', 'Completed (Auto)', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (new_id, st.session_state.username, mat7d_val[:7], reg_val, base_cost, gp_val, p_suite["gp_r1"], p_suite["gp_r2"], p_suite["gp_r3"], p_suite["gp_r4"], p_suite["gp_r5"], r["Division"], datetime.datetime.now(), datetime.datetime.now()))
+                        cursor.execute("INSERT INTO requests (custom_id, sales_username, material_code, request_type, status, region, base_price, final_price, range_1, range_2, range_3, range_4, range_5, target_price, approval_level, division, created_at, updated_at) VALUES (?, ?, ?, 'Standard Bin', 'Completed (Auto)', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (new_id, st.session_state.username, mat7d_val[:7], reg_val, base_cost, gp_val, p_suite["gp_r1"], p_suite["gp_r2"], p_suite["gp_r3"], p_suite["gp_r4"], p_suite["gp_r5"], target_val, appr_level, r["Division"], datetime.datetime.now(), datetime.datetime.now()))
                         conn.commit()
                     except Exception as e: st.error(f"Error Saving Record: {e}")
                 elif base_cost <= 0:
@@ -138,9 +157,10 @@ def render_grid(tab_type, tab_name):
                 base_cost = cost_df['cost'].iloc[0] if not cost_df.empty else 0.0
                 status_val = 'Pending Yield' if base_cost > 0 else 'Pending Cost & Yield'
                 try:
+                    appr_level = "Pending Pricing"
                     new_id = db.generate_request_id(r["Division"], reg_val)
                     cursor = conn.cursor()
-                    cursor.execute("INSERT INTO requests (custom_id, sales_username, material_code, request_type, status, region, division, created_at, updated_at) VALUES (?, ?, ?, 'Selected Bin', ?, ?, ?, ?, ?)", (new_id, st.session_state.username, mat7d_val[:7], status_val, reg_val, r["Division"], datetime.datetime.now(), datetime.datetime.now()))
+                    cursor.execute("INSERT INTO requests (custom_id, sales_username, material_code, request_type, status, region, target_price, approval_level, division, created_at, updated_at) VALUES (?, ?, ?, 'Selected Bin', ?, ?, ?, ?, ?, ?, ?)", (new_id, st.session_state.username, mat7d_val[:7], status_val, reg_val, target_val, appr_level, r["Division"], datetime.datetime.now(), datetime.datetime.now()))
                     conn.commit()
                 except: pass
             results.append(r)
@@ -166,7 +186,7 @@ def render():
     with tabs[1]:
         st.subheader("My Request History")
         conn = db.get_connection()
-        df_my = pd.read_sql_query("SELECT id, custom_id, material_code, request_type, region, division, status, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE sales_username = ? AND division = ? ORDER BY created_at DESC", conn, params=(st.session_state.username, st.session_state.division))
+        df_my = pd.read_sql_query("SELECT id, custom_id, material_code, request_type, region, division, status, target_price, approval_level, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE sales_username = ? AND division = ? ORDER BY created_at DESC", conn, params=(st.session_state.username, st.session_state.division))
         conn.close()
 
         if df_my.empty:
@@ -188,7 +208,7 @@ def render():
             
             cols = ['Request ID', 'material_code', 'request_type', 'region', 'status', 'actual_yield'] + [f'GP Range {i}' for i in range(1, 6)] + [f'VP Range {i}' for i in range(1, 6)]
             if st.session_state.get('level') == "G team leader": cols += ['GT Price', 'ST Price']
-            cols += ['created_at']
+            cols += ['target_price', 'approval_level', 'created_at']
             
             st.dataframe(df_my.reindex(columns=cols).style.map(style_status, subset=['status']), use_container_width=True, hide_index=True)
             

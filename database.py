@@ -17,7 +17,7 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS gm_targets (category TEXT, region TEXT, ohc REAL, opm REAL, gm_target REAL, PRIMARY KEY (category, region))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS price_gaps (category TEXT, range_name TEXT, gap_ratio REAL, PRIMARY KEY (category, range_name))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS baseline_costs (material_code TEXT PRIMARY KEY, material_description TEXT, q26_1_cost REAL, q26_2_cost REAL, cost REAL)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS requests (id INTEGER PRIMARY KEY AUTOINCREMENT, custom_id TEXT, sales_username TEXT, material_code TEXT, request_type TEXT, status TEXT, region TEXT, division TEXT, base_price REAL, actual_yield REAL, final_price REAL, range_1 REAL, range_2 REAL, range_3 REAL, range_4 REAL, range_5 REAL, created_at TIMESTAMP, updated_at TIMESTAMP)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS requests (id INTEGER PRIMARY KEY AUTOINCREMENT, custom_id TEXT, sales_username TEXT, material_code TEXT, request_type TEXT, status TEXT, region TEXT, division TEXT, base_price REAL, actual_yield REAL, final_price REAL, range_1 REAL, range_2 REAL, range_3 REAL, range_4 REAL, range_5 REAL, target_price REAL, approval_level TEXT, created_at TIMESTAMP, updated_at TIMESTAMP)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, action TEXT, details TEXT, timestamp TIMESTAMP)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS account_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id TEXT UNIQUE, name TEXT, email TEXT UNIQUE, region TEXT, level TEXT, division TEXT, status TEXT DEFAULT 'Pending', created_at TIMESTAMP)''')
     
@@ -26,6 +26,10 @@ def init_db():
     try: cursor.execute("ALTER TABLE account_requests ADD COLUMN division TEXT")
     except: pass
     try: cursor.execute("ALTER TABLE requests ADD COLUMN division TEXT")
+    except: pass
+    try: cursor.execute("ALTER TABLE requests ADD COLUMN target_price REAL")
+    except: pass
+    try: cursor.execute("ALTER TABLE requests ADD COLUMN approval_level TEXT")
     except: pass
     try: cursor.execute("ALTER TABLE account_requests ADD COLUMN level TEXT")
     except: pass
@@ -219,5 +223,29 @@ def request_account(name, employee_id, email, level, division):
     except sqlite3.IntegrityError: return False, "Error: Employee ID or Email already exists."
     except Exception as e: return False, f"Error: {e}"
     finally: conn.close()
+
+def send_email_notification(to_email, subject, body):
+    try:
+        import pythoncom
+        pythoncom.CoInitialize()
+        import win32com.client
+        outlook = win32com.client.Dispatch('outlook.application')
+        mail = outlook.CreateItem(0)
+        mail.To = to_email
+        mail.Subject = subject
+        mail.Body = body
+        mail.Send()
+        
+        try:
+            namespace = outlook.GetNamespace("MAPI")
+            sync = namespace.SyncObjects.Item(1)
+            sync.Start()
+        except:
+            pass
+            
+        return True
+    except Exception as e:
+        print(f"Outlook Error: {e}")
+        return False
 
 init_db()

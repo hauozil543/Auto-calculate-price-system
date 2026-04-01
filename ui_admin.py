@@ -122,6 +122,17 @@ def render():
                         cursor.execute("UPDATE account_requests SET status = 'Approved' WHERE id = ?", (int(req_id),))
                         conn.commit()
                         st.success(f"Request approved! User '{username}' created. Temp Password: {temp_password}")
+                        try:
+                            subject = "Account Created - Price Calculator App"
+                            user_email_str = str(req_info['email']).strip()
+                            user_name_str = str(req_info['name']).strip()
+                            body = f"Congratulations {user_name_str}!\n\nYour account has been approved.\nUsername: {username}\nTemporary Password: {temp_password}\n\nPlease log in and change your password.\nLink: http://172.16.124.126:8501"
+                            if db.send_email_notification(user_email_str, subject, body):
+                                st.info(f"Approval notification sent to user {user_email_str} via local Outlook.")
+                            else:
+                                st.error(f"Failed to dispatch Outlook mail to {user_email_str}. See terminal errors.")
+                        except Exception as e:
+                            st.error(f"Mail Exception: {e}")
                     except Exception as e:
                         st.error(f"Error: {e}")
         conn.close()

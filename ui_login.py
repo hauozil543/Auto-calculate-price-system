@@ -147,7 +147,19 @@ def render_login():
                 if st.button("Submit Request", use_container_width=True, type="primary"):
                     if rn and ri and re:
                         success, msg = db.request_account(rn, ri, re, rl, div)
-                        if success: st.success("Request logged! Please check your Outlook for approval.")
+                        if success: 
+                            st.success("Request logged! Please check your Outlook for approval.")
+                            try:
+                                admin_email = st.secrets["email"].get("admin_email")
+                                if admin_email:
+                                    subject = f"New Account Request: {rn}"
+                                    body = f"User {rn} ({ri}) from {div} has requested a {rl} account.\nPlease check the Admin panel for approval.\n\nLink: http://172.16.124.126:8501"
+                                    if db.send_email_notification(admin_email, subject, body):
+                                        st.info("Admin has been notified via local Outlook.")
+                                    else:
+                                        st.error("Failed to notify Admin via local Outlook. See terminal for errors.")
+                            except Exception as e:
+                                st.error(f"Mail Exception: {e}")
                         else: st.error(msg)
                 
                 # Back button as simple text too

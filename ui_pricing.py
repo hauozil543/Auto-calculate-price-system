@@ -136,7 +136,7 @@ def render():
         st.info("Process pending quotation requests and missing cost queries to finalize Base Prices for Sales.")
         
         conn = db.get_connection()
-        df_req = pd.read_sql_query("SELECT id, custom_id, sales_username, material_code, request_type, region, status, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE division = ? ORDER BY created_at DESC", conn, params=(st.session_state.division,))
+        df_req = pd.read_sql_query("SELECT id, custom_id, sales_username, material_code, request_type, region, status, target_price, approval_level, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE division = ? ORDER BY created_at DESC", conn, params=(st.session_state.division,))
         
         if df_req.empty:
             st.write("No requests pending.")
@@ -165,7 +165,7 @@ def render():
             cols_to_show_p = ['Request ID', 'sales_username', 'material_code', 'request_type', 'region', 'status', 'actual_yield'] + [f'GP Range {i}' for i in range(1, 6)] + [f'VP Range {i}' for i in range(1, 6)]
             if st.session_state.get('level') == "G team leader":
                 cols_to_show_p += ['GT Price', 'ST Price']
-            cols_to_show_p += ['created_at']
+            cols_to_show_p += ['target_price', 'approval_level', 'created_at']
             
             df_display_p = df_req.reindex(columns=cols_to_show_p)
             st.dataframe(df_display_p.style.map(style_status_col, subset=['status']), use_container_width=True, hide_index=True)
@@ -210,8 +210,25 @@ def render():
                         yld_val = (input_yield / 100.0) if input_yield else (1.0 if req_row['request_type'] == "Standard Bin" else 0.85)
                         p_suite = db.calculate_full_pricing_suite(cat_val, reg_val, input_cost, yields=yld_val, b1=buffer_val)
                         
+                        try:
+                            target_val = float(req_row.get('target_price', 0.0))
+                            if pd.isna(target_val): target_val = 0.0
+                        except:
+                            target_val = 0.0
+                            
+                        appr_level = req_row.get('approval_level', 'N/A')
+                        if target_val > 0 and p_suite["gp_base"] > 0:
+                            if target_val >= p_suite['gp_r5']:
+                                appr_level = "GP Level (Auto Approved)"
+                            elif target_val >= p_suite['vp_r5']:
+                                appr_level = "VP Level (Auto Approved)"
+                            elif target_val >= p_suite['gt']:
+                                appr_level = "GT Leader Approval"
+                            else:
+                                appr_level = "Pricing Team Approval"
+                        
                         cursor = conn.cursor()
-                        cursor.execute("UPDATE requests SET status = 'Completed', base_price = ?, actual_yield = ?, final_price = ?, range_1 = ?, range_2 = ?, range_3 = ?, range_4 = ?, range_5 = ?, updated_at = ? WHERE id = ?", (input_cost, input_yield if input_yield else 0.0, p_suite["gp_base"], p_suite["gp_r1"], p_suite["gp_r2"], p_suite["gp_r3"], p_suite["gp_r4"], p_suite["gp_r5"], datetime.datetime.now(), int(req_id_internal)))
+                        cursor.execute("UPDATE requests SET status = 'Completed', base_price = ?, actual_yield = ?, final_price = ?, range_1 = ?, range_2 = ?, range_3 = ?, range_4 = ?, range_5 = ?, approval_level = ?, updated_at = ? WHERE id = ?", (input_cost, input_yield if input_yield else 0.0, p_suite["gp_base"], p_suite["gp_r1"], p_suite["gp_r2"], p_suite["gp_r3"], p_suite["gp_r4"], p_suite["gp_r5"], appr_level, datetime.datetime.now(), int(req_id_internal)))
                         conn.commit()
                         st.success(f"Request {req_id_display} processed! GP Range 1: ${p_suite['gp_r1']:.4f}")
                         st.rerun()
