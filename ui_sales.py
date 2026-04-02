@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import database as db
 import datetime
+import ui_pcr
 
 def render_grid(tab_type, tab_name):
     st.write(f"Add rows to submit multi-line {tab_name} pricing calculations.")
@@ -175,7 +176,7 @@ def render_grid(tab_type, tab_name):
 
 def render():
     st.header("Sales Pricing Tool")
-    tabs = st.tabs(["Calculator", "My Requests"])
+    tabs = st.tabs(["Calculator", "My Requests", "PCR Dashboard"])
     
     with tabs[0]:
         st.subheader("Batch Request Interface")
@@ -218,3 +219,6 @@ def render():
             df_exp = df_my[df_my['id'].isin(sel_ids)] if sel_ids else df_my
             csv = df_exp.to_csv(index=False).encode('utf-8-sig')
             st.download_button("Export History to CSV", csv, "history.csv", "text/csv")
+            
+    with tabs[2]:
+        ui_pcr.render_pcr_dashboard()
