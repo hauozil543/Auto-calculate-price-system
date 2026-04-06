@@ -1,127 +1,284 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import datetime
+from dateutil.relativedelta import relativedelta
+import database as db
+import json
+
+def get_material_category(mat7d):
+    conn = db.get_connection()
+    df = pd.read_sql_query("SELECT category FROM standard_products WHERE material_code = ?", conn, params=(mat7d,))
+    conn.close()
+    return str(df['category'].iloc[0]).strip() if not df.empty else "UNKNOWN"
+
+def get_guide_price(mat7d, region, quarter, target_range):
+    conn = db.get_connection()
+    df = pd.read_sql_query("SELECT pricing_data FROM guide_price_historical WHERE material_code = ? AND region = ? AND division = 'HI' AND quarter LIKE ?", conn, params=(mat7d, region, f"%{quarter}%"))
+    conn.close()
+    if df.empty: return None
+    try:
+        data = json.loads(df['pricing_data'].iloc[0])
+        mapped_key = f"GP R{target_range[-1]}"
+        
+        if mapped_key in data: return float(data[mapped_key])
+        
+        for i in range(int(target_range[-1])-1, 0, -1):
+            if f"GP R{i}" in data: return float(data[f"GP R{i}"])
+            
+        return None
+    except:
+        return None
+
+def determine_range(volume, category, df_range):
+    cdf = df_range[df_range['Category'] == category]
+    if cdf.empty: return "Range 1"
+    row = cdf.iloc[0]
+    try:
+        r2 = float(row.get('Range 2', float('inf')))
+        r3 = float(row.get('Range 3', float('inf')))
+        r4 = float(row.get('Range 4', float('inf')))
+        r5 = float(row.get('Range 5', float('inf')))
+    except: return "Range 1"
+    
+    if volume < r2: return "Range 1"
+    if volume < r3: return "Range 2"
+    if volume < r4: return "Range 3"
+    if volume < r5: return "Range 4"
+    return "Range 5"
 
 def generate_ai_advice(overall_pcr, good_df, poor_df):
-    """Rule-based pseudo-AI to generate pricing advice based on data."""
     advice = []
-    
-    advice.append(f"🔍 **Phân tích tổng quan:** Mức độ tuân thủ giá (PCR) tổng thể của hệ thống hiện tại là **{overall_pcr:.2f}%**.")
+    advice.append(f"🔍 **Overall Analysis:** The overall Price Compliance Rate (PCR) for Division HI is **{overall_pcr:.2f}%**.")
     if overall_pcr >= 100:
-        advice.append("✅ **Đánh giá:** Rất tuyệt vời! Đội ngũ Sales đang chốt được mức giá trung bình vượt hoặc bằng mức khuyến nghị (Target/Guide). Điều này giúp biên lợi nhuận (GP) của công ty vô cùng vững chắc.")
+        advice.append("✅ **Assessment:** Excellent! Operations are preserving strict margin compliance across dynamic Range brackets.")
     elif overall_pcr >= 95:
-        advice.append("⚠️ **Đánh giá:** Tốt, nhưng vẫn còn dư địa để tối ưu. Đang bám khá sát giá khuyến nghị nhưng một số giao dịch bị hụt giá cần được rà soát lại.")
+        advice.append("⚠️ **Assessment:** Good, but minor underpricing detected compared to the required volume-specific range baseline.")
     else:
-        advice.append("🚨 **Đánh giá:** Đang dưới mức kỳ vọng! PCR tổng thể đang dưới 95%. Lời khuyên: Giám đốc kinh doanh cần kiểm tra lại chiến lược đàm phán của Sales hoặc xem xét lại giá Guide có đang quá cao so với thực tế sức mua của thị hiếu/đối thủ không.")
+        advice.append("🚨 **Assessment:** Below expectations! Significant drops below authorized volume-based Guide Prices. Recommend negotiation audits.")
 
     if not poor_df.empty:
-        advice.append("\n📉 **Sản phẩm cần có phương án can thiệp khẩn cấp (Poor Products):**")
+        advice.append("\n📉 **Products requiring intervention (Poor PCR vs Volume Bracket):**")
         for _, row in poor_df.head(3).iterrows():
-            mat = row.get('Material', 'Unknown')
-            pcr_val = row.get('PCR', 0)
-            advice.append(f"- Mã **{mat}** đang bị bán thấp hơn giá Guide (PCR: {pcr_val:.1f}%). *💡 AI Gợi ý: Hạn chế offer các mức giá ngoại lệ cho mã này trong tương lai trừ trường hợp đơn hàng có Volume đặc biệt lớn.*")
+            advice.append(f"- Material **{row['Material 7D']}** was pushed below {row['Assigned Range']} pricing baselines (PCR: {row['PCR']:.1f}%).")
 
     if not good_df.empty:
-        advice.append("\n🌟 **Sản phẩm chốt sale điểm sáng (Good Products):**")
+        advice.append("\n🌟 **Top performing products:**")
         for _, row in good_df.head(3).iterrows():
-            mat = row.get('Material', 'Unknown')
-            pcr_val = row.get('PCR', 0)
-            advice.append(f"- Mã **{mat}** làm rất tốt (PCR: {pcr_val:.1f}%). *💡 AI Gợi ý: Hãy khen thưởng Sale đẩy mạnh mã này và dùng đó làm Case Study đàm phán thành công cho sản phẩm ngách.*")
+            advice.append(f"- Material **{row['Material 7D']}** outperformed {row['Assigned Range']} expectations (PCR: {row['PCR']:.1f}%).")
             
     return "\n".join(advice)
 
 def render_pcr_dashboard():
-    st.header("📊 Price Compliance Rate (PCR) Dashboard")
-    st.markdown("**Hướng dẫn:** Tải lên file Data Bán Hàng theo tháng. File cần có ít nhất các cột: `Sales Name`, `Region`, `Material`, `Order Quantity`, `Sales Price`, `Guide Price`.")
+    st.header("Advanced Price Compliance Rate (PCR) - Division HI")
     
-    uploaded_file = st.file_uploader("📥 Tải lên Monthly Sales Data (Excel/CSV)", type=["xlsx", "csv"])
+    uploaded_file = st.file_uploader("Upload PCR.xlsx (Contains Monthly Input, Quantity Range, Forecast)", type=["xlsx"])
     
     if uploaded_file:
-        try:
-            if uploaded_file.name.endswith(".csv"):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
+        if "pcr_file" not in st.session_state or st.session_state.pcr_file != uploaded_file.name:
+            with st.spinner("Loading Excel into memory..."):
+                xl = pd.ExcelFile(uploaded_file)
+                df_act = pd.read_excel(xl, sheet_name='Monthly Input', keep_default_na=False)
+                df_fcst = pd.read_excel(xl, sheet_name='Forecast', keep_default_na=False)
+                df_range = pd.read_excel(xl, sheet_name='Quantity Range', keep_default_na=False)
                 
-            # Chuẩn hóa tên cột
-            df.columns = df.columns.str.strip()
-            
-            # Kiểm tra cột bắt buộc
-            req_cols = ["Sales Name", "Region", "Material", "Order Quantity", "Sales Price", "Guide Price"]
-            missing = [c for c in req_cols if c not in df.columns]
-            if missing:
-                st.error(f"❌ File thiếu các cột bắt buộc sau: {', '.join(missing)}")
-                return
-            
-            # Ép kiểu dữ liệu
-            df["Order Quantity"] = pd.to_numeric(df["Order Quantity"], errors='coerce').fillna(0)
-            df["Sales Price"] = pd.to_numeric(df["Sales Price"], errors='coerce').fillna(0)
-            df["Guide Price"] = pd.to_numeric(df["Guide Price"], errors='coerce').fillna(0)
-            
-            # Filter bar
-            st.subheader("Bảng điều khiển (Filters)")
-            col1, col2 = st.columns(2)
-            with col1:
-                regions = ["ALL"] + list(df["Region"].dropna().unique())
-                sel_region = st.selectbox("Lọc theo Region (Khu vực)", regions)
-            with col2:
-                sales = ["ALL"] + list(df["Sales Name"].dropna().unique())
-                sel_sale = st.selectbox("Lọc theo Sales Name (Tên NV)", sales)
+                df_act.columns = df_act.columns.str.strip()
+                df_fcst.columns = df_fcst.columns.str.strip()
+                df_range.columns = df_range.columns.str.strip()
                 
-            filtered_df = df.copy()
-            if sel_region != "ALL":
-                filtered_df = filtered_df[filtered_df["Region"] == sel_region]
-            if sel_sale != "ALL":
-                filtered_df = filtered_df[filtered_df["Sales Name"] == sel_sale]
+                df_act['Created on(S/O)(date)'] = pd.to_datetime(df_act['Created on(S/O)(date)'], errors='coerce')
+                df_act['Net price (KRW)'] = pd.to_numeric(df_act['Net price (KRW)'], errors='coerce').fillna(0)
+                df_act['Order qty.(A)'] = pd.to_numeric(df_act['Order qty.(A)'], errors='coerce').fillna(0)
+                df_act['Ext_7D'] = df_act['Material'].astype(str).str.strip().str[:7]
                 
-            if filtered_df.empty:
-                st.warning("Không có dữ liệu cho bộ lọc này!")
-                return
+                df_fcst['FCST balance'] = pd.to_numeric(df_fcst['FCST balance'], errors='coerce').fillna(0)
+                df_fcst['Ext_7D'] = df_fcst['Material'].astype(str).str.strip().str[:7]
                 
-            # Tính chỉ số PCR tổng thể
-            total_sales_revenue = (filtered_df["Sales Price"] * filtered_df["Order Quantity"]).sum()
-            total_guide_revenue = (filtered_df["Guide Price"] * filtered_df["Order Quantity"]).sum()
-            
-            pcr_overall = 0
-            if total_guide_revenue > 0:
-                pcr_overall = (total_sales_revenue / total_guide_revenue) * 100
+                st.session_state.df_act = df_act
+                st.session_state.df_fcst = df_fcst
+                st.session_state.df_range = df_range
+                st.session_state.pcr_file = uploaded_file.name
                 
-            col_metric1, col_metric2, col_metric3 = st.columns(3)
-            col_metric1.metric("💡 Overall PCR (Độ Tuân Thủ Giá)", f"{pcr_overall:.2f}%", 
-                               f"{pcr_overall - 100:.2f}% so với Guide" if pcr_overall > 0 else "")
-            col_metric2.metric("💰 Doanh Thu Thực (Actual Revenue)", f"${total_sales_revenue:,.0f}")
-            col_metric3.metric("🎯 Doanh Thu Chuẩn (Guide Revenue)", f"${total_guide_revenue:,.0f}")
+        df_act = st.session_state.df_act
+        df_fcst = st.session_state.df_fcst
+        df_range = st.session_state.df_range
+        
+        # Deduplicate FCST
+        act_sales_orders = df_act['Sales order'].dropna().astype(str).tolist()
+        df_fcst = df_fcst[~df_fcst['FCST Number'].astype(str).isin(act_sales_orders)]
+        
+        # Build selectbox options dynamically from dates
+        valid_dates = df_act['Created on(S/O)(date)'].dropna()
+        if valid_dates.empty:
+            st.error("Could not find any valid dates in 'Created on(S/O)(date)' column.")
+            return
             
-            # Tính PCR theo từng Material
-            df_g = df.groupby("Material").apply(
-                lambda x: pd.Series({
-                    "Total Quantity": x["Order Quantity"].sum(),
-                    "Total Sales Rev": (x["Sales Price"] * x["Order Quantity"]).sum(),
-                    "Total Guide Rev": (x["Guide Price"] * x["Order Quantity"]).sum()
-                })
-            ).reset_index()
-            
-            df_g["PCR"] = np.where(df_g["Total Guide Rev"] > 0, 
-                                   (df_g["Total Sales Rev"] / df_g["Total Guide Rev"]) * 100, 
-                                   0)
-                                   
-            good_products = df_g[df_g["PCR"] >= 100].sort_values(by="PCR", ascending=False)
-            poor_products = df_g[(df_g["PCR"] < 100) & (df_g["PCR"] > 0)].sort_values(by="PCR", ascending=True)
+        months_list = valid_dates.dt.strftime('%B %Y').unique()
+        # Sort months chronologically
+        months_list = sorted(months_list, key=lambda x: datetime.datetime.strptime(x, '%B %Y'))
 
-            st.write("---")
-            col_prod1, col_prod2 = st.columns(2)
-            with col_prod1:
-                st.success(f"🌟 Good Products (PCR >= 100%)")
-                st.dataframe(good_products[["Material", "PCR", "Total Quantity", "Total Sales Rev"]].style.format({"PCR": "{:.2f}%", "Total Quantity": "{:.0f}", "Total Sales Rev": "${:,.0f}"}), use_container_width=True, hide_index=True)
-                
-            with col_prod2:
-                st.error(f"📉 Poor Products (PCR < 100%)")
-                st.dataframe(poor_products[["Material", "PCR", "Total Quantity", "Total Guide Rev"]].style.format({"PCR": "{:.2f}%", "Total Quantity": "{:.0f}", "Total Guide Rev": "${:,.0f}"}), use_container_width=True, hide_index=True)
-
-            st.write("---")
-            st.subheader("Phân Tích Bằng AI (Smart Advisor)")
-            with st.container(border=True):
-                st.markdown(generate_ai_advice(pcr_overall, good_products, poor_products))
+        with st.expander("Calculation Settings", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            target_ui_month = col1.selectbox("Target Evaluation Month", ["ALL"] + list(months_list))
+            guide_quarter = col2.text_input("Guide Price Baseline Quarter", value="26.1Q")
+            forecast_week = col3.text_input("Forecast Registration Week (e.g. 2026.05)", value="2026.05")
+        
+        if st.button("Process & Calculate PCR", type="primary"):
             
-        except Exception as e:
-            st.error(f"Lỗi đọc file hoặc tính toán: {e}")
+            # --- STRICT VALIDATIONS ---
+            valid_fcst_weeks = df_fcst['Registration week'].dropna().astype(str).unique()
+            if forecast_week not in valid_fcst_weeks:
+                st.error(f"Lỗi Ràng Buộc: Tuần Forecast '{forecast_week}' KHÔNG TỒN TẠI trong bảng Forecast. Các mốc hiện có: {', '.join(valid_fcst_weeks)}")
+                return
+                
+            if target_ui_month != "ALL":
+                tgt_dt = datetime.datetime.strptime(target_ui_month, '%B %Y')
+                tgt_q = (tgt_dt.month - 1) // 3 + 1
+                tgt_yr = str(tgt_dt.year)[-2:]
+                expected_guide = f"{tgt_yr}.{tgt_q}Q"
+                
+                if expected_guide not in guide_quarter:
+                    st.error(f"Lỗi Ràng Buộc: Bạn chọn đánh giá '{target_ui_month}' (thuộc {expected_guide}) nhưng Quý Guide Price lại là '{guide_quarter}'. Dữ liệu tham chiếu không khớp thời gian!")
+                    return
+                    
+                target_month_start = tgt_dt.replace(day=1)
+                ten_months_ago = (target_month_start - relativedelta(months=9))
+                min_date_in_db = df_act['Created on(S/O)(date)'].min()
+                if ten_months_ago < min_date_in_db.replace(day=1):
+                    st.warning(f"⚠️ Cảnh Báo Data L12M: Dữ liệu Actuals cũ nhất trong file là {min_date_in_db.strftime('%B %Y')}. Sẽ không tích lũy đủ 10 tháng lùi về trước từ '{target_ui_month}'. Phần mềm vẫn sẽ tính tổng các tháng khả dụng.")
+
+            with st.spinner("Compiling rolling arrays..."):
+                try:
+                    df_fcst_target = df_fcst[df_fcst['Registration week'].astype(str) == forecast_week]
+                    
+                    if target_ui_month != "ALL":
+                        # Filter eval slice
+                        selected_dt_str = datetime.datetime.strptime(target_ui_month, '%B %Y').strftime('%Y-%m')
+                        df_eval = df_act[df_act['Created on(S/O)(date)'].dt.strftime('%Y-%m') == selected_dt_str].copy()
+                    else:
+                        df_eval = df_act.copy()
+                        
+                    success_log = []
+                    final_results = []
+                    
+                    progress = st.progress(0)
+                    eval_total = len(df_eval)
+                    processed = 0
+                    
+                    for idx, row in df_eval.iterrows():
+                        processed += 1
+                        if processed % max(1, int(eval_total/10)) == 0:
+                            progress.progress(processed/eval_total)
+                            
+                        mat_7d = row['Ext_7D']
+                        mat_name = str(row.get('Material name', ''))
+                        region = str(row.get('Region', 'UNKNOWN')).strip()
+                        end_cust = str(row.get('End customer', '')).strip()
+                        end_cust_name = str(row.get('End customer name', ''))
+                        sales_emp = str(row.get('Sales employee name', '')).strip()
+                        sales_qty = row['Order qty.(A)']
+                        net_price_krw = row['Net price (KRW)']
+                        
+                        if sales_qty <= 0 or net_price_krw <= 0: continue
+                        net_price_usd = net_price_krw / 1350.0
+                        
+                        # Dynamically calculate L10M based on the row's specific transaction date
+                        target_dt = row['Created on(S/O)(date)']
+                        target_month_end = target_dt + pd.offsets.MonthEnd(0)
+                        ten_months_ago = (target_dt - relativedelta(months=9)).replace(day=1)
+                        
+                        # Compute L10M Actual specifically for this End customer + Material
+                        hist_vol = df_act[(df_act['Created on(S/O)(date)'] >= ten_months_ago) & 
+                                          (df_act['Created on(S/O)(date)'] <= target_month_end) & 
+                                          (df_act['End customer'].astype(str).str.strip() == end_cust) & 
+                                          (df_act['Ext_7D'] == mat_7d)]['Order qty.(A)'].sum()
+                        
+                        # Compute F2M Forecast exactly as before
+                        futu_vol = df_fcst_target[(df_fcst_target['Sales District'].astype(str).str.strip() == end_cust) & (df_fcst_target['Ext_7D'] == mat_7d)]['FCST balance'].sum()
+                        
+                        total_l12m = hist_vol + futu_vol
+                        
+                        # Match Range
+                        cat = get_material_category(mat_7d)
+                        assigned_range = determine_range(total_l12m, cat, df_range)
+                        
+                        # Match Guide
+                        guide_prc = get_guide_price(mat_7d, region, guide_quarter, assigned_range)
+                        
+                        if guide_prc is None:
+                            continue # IGNORING Missing 
+                            
+                        pcr_val = (net_price_usd / guide_prc) * 100
+                        
+                        final_results.append({
+                            "Sales Order": row.get('Sales order', ''),
+                            "Sales Employee": sales_emp,
+                            "Material 7D": mat_7d,
+                            "Product Name": mat_name,
+                            "End Customer Code": end_cust,
+                            "End Customer Name": end_cust_name,
+                            "Region": region,
+                            "Category": cat,
+                            "L12M Volume": total_l12m,
+                            "Assigned Range": assigned_range,
+                            "Target Qty": sales_qty,
+                            "Net Price (USD)": net_price_usd,
+                            "Guide Price Applied": guide_prc,
+                            "Sales Rev (USD)": net_price_usd * sales_qty,
+                            "Guide Rev (USD)": guide_prc * sales_qty,
+                            "PCR": pcr_val
+                        })
+                    
+                    progress.empty()
+                    
+                    if not final_results:
+                        st.warning("No records matched the criteria (Check Division HI historical availability or matching dates).")
+                        return
+                    
+                    rdf = pd.DataFrame(final_results)
+                    
+                    total_s_rev = rdf['Sales Rev (USD)'].sum()
+                    total_g_rev = rdf['Guide Rev (USD)'].sum()
+                    overall = (total_s_rev/total_g_rev)*100 if total_g_rev > 0 else 0
+                    
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("OVERALL PCR (Dynamic Tier)", f"{overall:.2f}%")
+                    c2.metric("Total Evaluated Sales Rev", f"${total_s_rev:,.0f}")
+                    c3.metric("Total Equivalent Guide Rev", f"${total_g_rev:,.0f}")
+                    
+                    st.write("### Target Transactions Overview")
+                    st.dataframe(rdf.style.format({"PCR": "{:.2f}%", "L12M Volume": "{:,.0f}", "Net Price (USD)": "${:.4f}", "Guide Price Applied": "${:.4f}"}), use_container_width=True)
+
+                    st.write("---")
+                    col_tab1, col_tab2 = st.columns(2)
+                    
+                    with col_tab1:
+                        st.write("### PCR by Region")
+                        g_reg = rdf.groupby("Region").agg({"Sales Rev (USD)": "sum", "Guide Rev (USD)": "sum"}).reset_index()
+                        g_reg["PCR"] = np.where(g_reg["Guide Rev (USD)"] > 0, (g_reg["Sales Rev (USD)"] / g_reg["Guide Rev (USD)"]) * 100, 0)
+                        st.dataframe(g_reg[["Region", "PCR"]].style.format({"PCR": "{:.2f}%"}), use_container_width=True, hide_index=True)
+                        
+                    with col_tab2:
+                        st.write("### PCR by Salesperson")
+                        g_sales = rdf.groupby(["Region", "Sales Employee"]).agg({"Sales Rev (USD)": "sum", "Guide Rev (USD)": "sum"}).reset_index()
+                        g_sales["PCR"] = np.where(g_sales["Guide Rev (USD)"] > 0, (g_sales["Sales Rev (USD)"] / g_sales["Guide Rev (USD)"]) * 100, 0)
+                        st.dataframe(g_sales[["Region", "Sales Employee", "PCR"]].style.format({"PCR": "{:.2f}%"}), use_container_width=True, hide_index=True)
+
+                    g_prod = rdf.groupby("Material 7D").agg({
+                        "Sales Rev (USD)": "sum", 
+                        "Guide Rev (USD)": "sum", 
+                        "Assigned Range": "first"
+                    }).reset_index()
+                    
+                    g_prod["PCR"] = np.where(g_prod["Guide Rev (USD)"] > 0, (g_prod["Sales Rev (USD)"] / g_prod["Guide Rev (USD)"]) * 100, 0)
+                    
+                    good_products = g_prod[g_prod["PCR"] >= 100].sort_values(by="PCR", ascending=False)
+                    poor_products = g_prod[(g_prod["PCR"] < 100) & (g_prod["PCR"] > 0)].sort_values(by="PCR", ascending=True)
+
+                    st.write("---")
+                    st.subheader("AI Analysis (Smart Advisor)")
+                    with st.container(border=True):
+                        st.markdown(generate_ai_advice(overall, good_products, poor_products))
+                    
+                except Exception as e:
+                    st.error(f"Execution Engine Error: {e}")
