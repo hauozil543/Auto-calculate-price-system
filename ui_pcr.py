@@ -5,6 +5,7 @@ import datetime
 from dateutil.relativedelta import relativedelta
 import database as db
 import json
+import io
 
 def get_material_category(mat7d):
     conn = db.get_connection()
@@ -276,9 +277,28 @@ def render_pcr_dashboard():
                     poor_products = g_prod[(g_prod["PCR"] < 100) & (g_prod["PCR"] > 0)].sort_values(by="PCR", ascending=True)
 
                     st.write("---")
+                    st.subheader("Export Report")
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        rdf.to_excel(writer, sheet_name='Chi Tiet (Transactions)', index=False)
+                        g_prod.to_excel(writer, sheet_name='Tong (By Material)', index=False)
+                        g_reg.to_excel(writer, sheet_name='Theo Region', index=False)
+                        g_sales.to_excel(writer, sheet_name='Theo Sales', index=False)
+                        
+                    excel_data = output.getvalue()
+                    safe_month = target_ui_month.replace(' ', '_').replace('/', '_')
+                    st.download_button(
+                        label="Download Excel Report",
+                        data=excel_data,
+                        file_name=f"PCR_Report_HI_{safe_month}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+
+                    st.write("---")
                     st.subheader("AI Analysis (Smart Advisor)")
                     with st.container(border=True):
-                        st.markdown(generate_ai_advice(overall, good_products, poor_products))
+                        st.markdown(generate_ai_advice(overall, good_products, poor_products).replace("🔍", "").replace("✅", "").replace("⚠️", "").replace("🚨", "").replace("📉", "").replace("🌟", ""))
+
                     
                 except Exception as e:
                     st.error(f"Execution Engine Error: {e}")
