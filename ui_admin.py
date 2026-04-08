@@ -5,9 +5,9 @@ import database as db
 def render():
     st.header("Admin Area: User and Log Management")
     
-    tabs = st.tabs(["Users Management", "Account Requests", "System Logs"])
+    active_tab = st.radio("Menu", ["Users Management", "Account Requests", "System Logs"], horizontal=True, label_visibility="collapsed", key="admin_main_nav")
     
-    with tabs[0]:
+    if active_tab == "Users Management":
         st.subheader("System Users Roster")
         conn = db.get_connection()
         df_users = pd.read_sql_query("SELECT id, username, role, level, region, division FROM users", conn)
@@ -69,7 +69,7 @@ def render():
                     st.warning("Please fill in both Username and Password.")
         conn.close()
 
-    with tabs[1]:
+    elif active_tab == "Account Requests":
         st.subheader("Pending Account Requests")
         conn = db.get_connection()
         df_reqs = pd.read_sql_query("SELECT id, name, employee_id, email, level, division, status, created_at FROM account_requests WHERE status = 'Pending'", conn)
@@ -137,7 +137,7 @@ def render():
                         st.error(f"Error: {e}")
         conn.close()
         
-    with tabs[2]:
+    elif active_tab == "System Logs":
         st.subheader("System Access and Action Logs")
         conn = db.get_connection()
         df_logs = pd.read_sql_query("SELECT id, username, action, details, timestamp FROM logs ORDER BY timestamp DESC LIMIT 100", conn)

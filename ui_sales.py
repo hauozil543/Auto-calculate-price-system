@@ -176,15 +176,15 @@ def render_grid(tab_type, tab_name):
 
 def render():
     st.header("Sales Pricing Tool")
-    tabs = st.tabs(["Calculator", "My Requests", "PCR Dashboard"])
+    active_tab = st.radio("Menu", ["Calculator", "My Requests", "PCR Dashboard"], horizontal=True, label_visibility="collapsed", key="sales_main_nav")
     
-    with tabs[0]:
+    if active_tab == "Calculator":
         st.subheader("Batch Request Interface")
         calc_tabs = st.tabs(["Standard Bin", "Selected Bin"])
         with calc_tabs[0]: render_grid('std', 'Standard BIN')
         with calc_tabs[1]: render_grid('sel', 'Selected BIN')
 
-    with tabs[1]:
+    elif active_tab == "My Requests":
         st.subheader("My Request History")
         conn = db.get_connection()
         df_my = pd.read_sql_query("SELECT id, custom_id, material_code, request_type, region, division, status, target_price, approval_level, actual_yield, final_price, range_1, range_2, range_3, range_4, range_5, created_at FROM requests WHERE sales_username = ? AND division = ? ORDER BY created_at DESC", conn, params=(st.session_state.username, st.session_state.division))
@@ -220,5 +220,5 @@ def render():
             csv = df_exp.to_csv(index=False).encode('utf-8-sig')
             st.download_button("Export History to CSV", csv, "history.csv", "text/csv")
             
-    with tabs[2]:
+    elif active_tab == "PCR Dashboard":
         ui_pcr.render_pcr_dashboard()

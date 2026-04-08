@@ -126,12 +126,12 @@ def render_pricing_grid():
 def render():
     st.header("Pricing Team Dashboard")
     
-    tabs = st.tabs(["Quick Calculator", "Special Requests", "Database Monitor", "Price History"])
+    active_tab = st.radio("Menu", ["Quick Calculator", "Special Requests", "Database Monitor", "Price History"], horizontal=True, label_visibility="collapsed", key="pricing_main_nav")
     
-    with tabs[0]:
+    if active_tab == "Quick Calculator":
         render_pricing_grid()
 
-    with tabs[1]:
+    elif active_tab == "Special Requests":
         st.subheader("Actionable Sales Requests")
         st.info("Process pending quotation requests and missing cost queries to finalize Base Prices for Sales.")
         
@@ -234,7 +234,7 @@ def render():
                         st.rerun()
         conn.close()
         
-    with tabs[2]:
+    elif active_tab == "Database Monitor":
         st.subheader("Real-time Database Status")
         conn = db.get_connection()
         col1, col2, col3, col4 = st.columns(4)
@@ -267,7 +267,7 @@ def render():
                     else:
                         st.error(msg)
 
-    with tabs[3]:
+    elif active_tab == "Price History":
         st.subheader("Historical Price Management")
         st.subheader("Historical Price Lookup")
         f_col1, f_col2, f_col3, f_col4 = st.columns(4)

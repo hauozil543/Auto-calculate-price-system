@@ -117,10 +117,14 @@ def render_pcr_dashboard():
         months_list = valid_dates.dt.strftime('%B %Y').unique()
         # Sort months chronologically
         months_list = sorted(months_list, key=lambda x: datetime.datetime.strptime(x, '%B %Y'))
+        
+        # Build quarters list (e.g., "Q1 2026")
+        q_list = valid_dates.dt.to_period('Q').dt.strftime('Q%q %Y').unique()
+        q_list = sorted(list(q_list))
 
         with st.expander("Calculation Settings", expanded=True):
             col1, col2, col3 = st.columns(3)
-            target_ui_month = col1.selectbox("Target Evaluation Month", ["ALL"] + list(months_list))
+            target_ui_month = col1.selectbox("Target Evaluation Month", ["ALL"] + q_list + list(months_list))
             guide_quarter = col2.text_input("Guide Price Baseline Quarter", value="26.1Q")
             forecast_week = col3.text_input("Forecast Registration Week (e.g. 2026.05)", value="2026.05")
         
@@ -133,16 +137,23 @@ def render_pcr_dashboard():
                 return
                 
             if target_ui_month != "ALL":
-                tgt_dt = datetime.datetime.strptime(target_ui_month, '%B %Y')
-                tgt_q = (tgt_dt.month - 1) // 3 + 1
-                tgt_yr = str(tgt_dt.year)[-2:]
-                expected_guide = f"{tgt_yr}.{tgt_q}Q"
+                if target_ui_month.startswith("Q"):
+                    q_str, y_str = target_ui_month.split(" ")
+                    tgt_q = int(q_str[1])
+                    tgt_yr = y_str[-2:]
+                    expected_guide = f"{tgt_yr}.{tgt_q}Q"
+                    target_month_start = datetime.datetime(int(y_str), (tgt_q-1)*3 + 1, 1)
+                else:
+                    tgt_dt = datetime.datetime.strptime(target_ui_month, '%B %Y')
+                    tgt_q = (tgt_dt.month - 1) // 3 + 1
+                    tgt_yr = str(tgt_dt.year)[-2:]
+                    expected_guide = f"{tgt_yr}.{tgt_q}Q"
+                    target_month_start = tgt_dt.replace(day=1)
                 
                 if expected_guide not in guide_quarter:
                     st.error(f"Lỗi Ràng Buộc: Bạn chọn đánh giá '{target_ui_month}' (thuộc {expected_guide}) nhưng Quý Guide Price lại là '{guide_quarter}'. Dữ liệu tham chiếu không khớp thời gian!")
                     return
                     
-                target_month_start = tgt_dt.replace(day=1)
                 ten_months_ago = (target_month_start - relativedelta(months=9))
                 min_date_in_db = df_act['Created on(S/O)(date)'].min()
                 if ten_months_ago < min_date_in_db.replace(day=1):
@@ -152,12 +163,17 @@ def render_pcr_dashboard():
                 try:
                     df_fcst_target = df_fcst[df_fcst['Registration week'].astype(str) == forecast_week]
                     
-                    if target_ui_month != "ALL":
-                        # Filter eval slice
+                    if target_ui_month == "ALL":
+                        df_eval = df_act.copy()
+                    elif target_ui_month.startswith("Q"):
+                        q_str, y_str = target_ui_month.split(" ")
+                        target_q = int(q_str[1])
+                        target_y = int(y_str)
+                        df_eval = df_act[(df_act['Created on(S/O)(date)'].dt.quarter == target_q) & (df_act['Created on(S/O)(date)'].dt.year == target_y)].copy()
+                    else:
+                        # Filter eval slice by specific month
                         selected_dt_str = datetime.datetime.strptime(target_ui_month, '%B %Y').strftime('%Y-%m')
                         df_eval = df_act[df_act['Created on(S/O)(date)'].dt.strftime('%Y-%m') == selected_dt_str].copy()
-                    else:
-                        df_eval = df_act.copy()
                         
                     success_log = []
                     final_results = []
