@@ -44,6 +44,10 @@ def init_db():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_hist_mat ON guide_price_historical(material_code)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_hist_div ON guide_price_historical(division)')
     
+    # PCR Released System
+    cursor.execute('''CREATE TABLE IF NOT EXISTS pcr_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, period_name TEXT, released_by TEXT, division TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS pcr_report_details (id INTEGER PRIMARY KEY AUTOINCREMENT, report_id INTEGER, sales_order TEXT, sales_employee_id TEXT, sales_employee_name TEXT, region TEXT, material_7d TEXT, product_name TEXT, end_customer_code TEXT, end_customer_name TEXT, category TEXT, l12m_vol REAL, assigned_range TEXT, target_qty REAL, net_price_usd REAL, guide_price REAL, sales_rev REAL, guide_rev REAL, pcr REAL, FOREIGN KEY(report_id) REFERENCES pcr_reports(id))''')
+    
     conn.commit()
     conn.close()
 
@@ -247,5 +251,61 @@ def send_email_notification(to_email, subject, body):
     except Exception as e:
         print(f"Outlook Error: {e}")
         return False
+
+def save_released_pcr(period, released_by, division, df_results):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO pcr_reports (period_name, released_by, division) VALUES (?, ?, ?)", (period, released_by, division))
+        report_id = cursor.lastrowid
+        
+        for _, row in df_results.iterrows():
+            cursor.execute("""
+                INSERT INTO pcr_report_details (
+                    report_id, sales_order, sales_employee_id, sales_employee_name, region, material_7d, 
+                    product_name, end_customer_code, end_customer_name, category, l12m_vol, 
+                    assigned_range, target_qty, net_price_usd, guide_price, sales_rev, guide_rev, pcr
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                report_id, row.get('Sales Order'), row.get('Sales Employee ID'), row.get('Sales Employee'),
+                row.get('Region'), row.get('Material 7D'), row.get('Product Name'), row.get('End Customer Code'),
+                row.get('End Customer Name'), row.get('Category'), row.get('L12M Volume'), row.get('Assigned Range'),
+                row.get('Target Qty'), row.get('Net Price (USD)'), row.get('Guide Price Applied'),
+                row.get('Sales Rev (USD)'), row.get('Guide Rev (USD)'), row.get('PCR')
+            ))
+        conn.commit()
+        conn.close()
+        return True, "Report released successfully!"
+    except Exception as e:
+        return False, f"Database Error: {e}"
+
+def get_released_reports_list(division):
+    conn = get_connection()
+    df = pd.read_sql_query("SELECT id, period_name, released_by, created_at FROM pcr_reports WHERE division = ? ORDER BY created_at DESC", conn, params=(division,))
+    conn.close()
+    return df
+
+def get_released_report_details(report_id, user_context):
+    # user_context: {'role': '...', 'level': '...', 'username': '...', 'region': '...'}
+    conn = get_connection()
+    role = user_context.get('role')
+    level = user_context.get('level')
+    username = user_context.get('username')
+    region = user_context.get('region')
+    
+    query = "SELECT * FROM pcr_report_details WHERE report_id = ?"
+    params = [report_id]
+    
+    if role == "Sales":
+        if level == "Staff":
+            query += " AND sales_employee_id = ?"
+            params.append(username)
+        elif level in ["L team leader", "C team leader"] and region != "ALL":
+            query += " AND region = ?"
+            params.append(region)
+    
+    df = pd.read_sql_query(query, conn, params=params)
+    conn.close()
+    return df
 
 init_db()

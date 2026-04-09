@@ -73,7 +73,17 @@ def generate_ai_advice(overall_pcr, good_df, poor_df):
 def render_pcr_dashboard():
     st.header("Advanced Price Compliance Rate (PCR) - Division HI")
     
-    uploaded_file = st.file_uploader("Upload PCR.xlsx (Contains Monthly Input, Quantity Range, Forecast)", type=["xlsx"])
+    current_role = st.session_state.get('role', 'Sales')
+    current_level = st.session_state.get('level', 'Staff')
+    
+    mode_options = ["View Released Reports"]
+    if current_role in ["Pricing", "Admin"]:
+        mode_options.append("Calculate New PCR")
+    
+    pcr_mode = st.radio("PCR Mode", mode_options, horizontal=True, label_visibility="collapsed")
+    
+    if pcr_mode == "Calculate New PCR":
+        uploaded_file = st.file_uploader("Upload PCR.xlsx (Contains Monthly Input, Quantity Range, Forecast)", type=["xlsx"])
     
     if uploaded_file:
         if "pcr_file" not in st.session_state or st.session_state.pcr_file != uploaded_file.name:
@@ -193,6 +203,7 @@ def render_pcr_dashboard():
                         end_cust = str(row.get('End customer', '')).strip()
                         end_cust_name = str(row.get('End customer name', ''))
                         sales_emp = str(row.get('Sales employee name', '')).strip()
+                        sales_emp_id = str(row.get('Sales employee', '')).strip()
                         sales_qty = row['Order qty.(A)']
                         net_price_krw = row['Net price (KRW)']
                         
@@ -230,6 +241,7 @@ def render_pcr_dashboard():
                         final_results.append({
                             "Sales Order": row.get('Sales order', ''),
                             "Sales Employee": sales_emp,
+                            "Sales Employee ID": sales_emp_id,
                             "Material 7D": mat_7d,
                             "Product Name": mat_name,
                             "End Customer Code": end_cust,
@@ -292,8 +304,6 @@ def render_pcr_dashboard():
                     good_products = g_prod[g_prod["PCR"] >= 100].sort_values(by="PCR", ascending=False)
                     poor_products = g_prod[(g_prod["PCR"] < 100) & (g_prod["PCR"] > 0)].sort_values(by="PCR", ascending=True)
 
-                    st.write("---")
-                    st.subheader("Export Report")
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                         rdf.to_excel(writer, sheet_name='Chi Tiet (Transactions)', index=False)
@@ -303,12 +313,23 @@ def render_pcr_dashboard():
                         
                     excel_data = output.getvalue()
                     safe_month = target_ui_month.replace(' ', '_').replace('/', '_')
-                    st.download_button(
-                        label="Download Excel Report",
-                        data=excel_data,
-                        file_name=f"PCR_Report_HI_{safe_month}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                    
+                    st.write("---")
+                    st.subheader("Release & Export")
+                    rel_col1, rel_col2 = st.columns(2)
+                    with rel_col1:
+                        st.download_button(
+                            label="Download Excel Report",
+                            data=excel_data,
+                            file_name=f"PCR_Report_HI_{safe_month}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                    with rel_col2:
+                        if st.button("Release Report to Sales Team", type="primary", use_container_width=True):
+                            success, msg = db.save_released_pcr(target_ui_month, st.session_state.username, "HI", rdf)
+                            if success: st.success(msg)
+                            else: st.error(msg)
+
 
                     st.write("---")
                     st.subheader("AI Analysis (Smart Advisor)")
@@ -318,3 +339,89 @@ def render_pcr_dashboard():
                     
                 except Exception as e:
                     st.error(f"Execution Engine Error: {e}")
+                    
+    elif pcr_mode == "View Released Reports":
+        st.subheader("Released PCR Reports History")
+        df_reports = db.get_released_reports_list("HI")
+        
+        if df_reports.empty:
+            st.info("No PCR reports have been released for Division HI yet.")
+        else:
+            report_options = {f"{row['period_name']} (Released: {row['created_at']})": row['id'] for _, row in df_reports.iterrows()}
+            selected_report_label = st.selectbox("Select Report Period", list(report_options.keys()))
+            report_id = report_options[selected_report_label]
+            
+            user_context = {
+                'role': current_role,
+                'level': current_level,
+                'username': st.session_state.username,
+                'region': st.session_state.get('region', 'ALL')
+            }
+            
+            with st.spinner("Loading report data..."):
+                rdf = db.get_released_report_details(report_id, user_context)
+                
+                if rdf.empty:
+                    st.warning("No data found for your access level in this report.")
+                else:
+                    # Rename back to UI standard if needed, or adjust mapping
+                    # Table was saved with specific names: sales_employee_name -> Sales Employee
+                    rdf = rdf.rename(columns={
+                        'sales_order': 'Sales Order',
+                        'sales_employee_name': 'Sales Employee',
+                        'material_7d': 'Material 7D',
+                        'product_name': 'Product Name',
+                        'end_customer_code': 'End Customer Code',
+                        'end_customer_name': 'End Customer Name',
+                        'region': 'Region',
+                        'category': 'Category',
+                        'l12m_vol': 'L12M Volume',
+                        'assigned_range': 'Assigned Range',
+                        'target_qty': 'Target Qty',
+                        'net_price_usd': 'Net Price (USD)',
+                        'guide_price': 'Guide Price Applied',
+                        'sales_rev': 'Sales Rev (USD)',
+                        'guide_rev': 'Guide Rev (USD)',
+                        'pcr': 'PCR'
+                    })
+                    
+                    total_s_rev = rdf['Sales Rev (USD)'].sum()
+                    total_g_rev = rdf['Guide Rev (USD)'].sum()
+                    overall = (total_s_rev / total_g_rev) * 100 if total_g_rev > 0 else 0
+                    
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("OVERALL PCR", f"{overall:.2f}%")
+                    c2.metric("Total Evaluated Sales Rev", f"${total_s_rev:,.0f}")
+                    c3.metric("Total Equivalent Guide Rev", f"${total_g_rev:,.0f}")
+                    
+                    st.write("### PCR Transactions Details")
+                    st.dataframe(rdf.style.format({"PCR": "{:.2f}%", "L12M Volume": "{:,.0f}", "Net Price (USD)": "${:.4f}", "Guide Price Applied": "${:.4f}"}), use_container_width=True, hide_index=True)
+                    
+                    st.write("---")
+                    col_tab1, col_tab2 = st.columns(2)
+                    with col_tab1:
+                        st.write("### PCR by Region")
+                        g_reg = rdf.groupby("Region").agg({"Sales Rev (USD)": "sum", "Guide Rev (USD)": "sum"}).reset_index()
+                        g_reg["PCR"] = np.where(g_reg["Guide Rev (USD)"] > 0, (g_reg["Sales Rev (USD)"] / g_reg["Guide Rev (USD)"]) * 100, 0)
+                        st.dataframe(g_reg[["Region", "PCR"]].style.format({"PCR": "{:.2f}%"}), use_container_width=True, hide_index=True)
+                    with col_tab2:
+                        st.write("### PCR by Salesperson")
+                        g_sales = rdf.groupby(["Region", "Sales Employee"]).agg({"Sales Rev (USD)": "sum", "Guide Rev (USD)": "sum"}).reset_index()
+                        g_sales["PCR"] = np.where(g_sales["Guide Rev (USD)"] > 0, (g_sales["Sales Rev (USD)"] / g_sales["Guide Rev (USD)"]) * 100, 0)
+                        st.dataframe(g_sales[["Region", "Sales Employee", "PCR"]].style.format({"PCR": "{:.2f}%"}), use_container_width=True, hide_index=True)
+                    
+                    # AI Advice also works on released data
+                    g_prod = rdf.groupby("Material 7D").agg({
+                        "Sales Rev (USD)": "sum", 
+                        "Guide Rev (USD)": "sum", 
+                        "Assigned Range": "first"
+                    }).reset_index()
+                    g_prod["PCR"] = np.where(g_prod["Guide Rev (USD)"] > 0, (g_prod["Sales Rev (USD)"] / g_prod["Guide Rev (USD)"]) * 100, 0)
+                    good_products = g_prod[g_prod["PCR"] >= 100].sort_values(by="PCR", ascending=False)
+                    poor_products = g_prod[(g_prod["PCR"] < 100) & (g_prod["PCR"] > 0)].sort_values(by="PCR", ascending=True)
+
+                    st.write("---")
+                    st.subheader("AI Analysis (Smart Advisor)")
+                    with st.container(border=True):
+                        st.markdown(generate_ai_advice(overall, good_products, poor_products).replace("🔍", "").replace("✅", "").replace("⚠️", "").replace("🚨", "").replace("📉", "").replace("🌟", ""))
+
