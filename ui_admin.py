@@ -11,7 +11,7 @@ def render():
         st.subheader("System Users Roster")
         conn = db.get_connection()
         df_users = pd.read_sql_query("SELECT id, username, role, level, region, division FROM users", conn)
-        st.dataframe(df_users, use_container_width=True, hide_index=True)
+        st.dataframe(df_users.drop(columns=['id'], errors='ignore'), use_container_width=True, hide_index=True)
         
         st.markdown("---")
         st.subheader("Delete User")
@@ -79,7 +79,7 @@ def render():
         else:
             def style_status(val):
                 return 'color: #fd7e14; font-weight: bold;' if val == 'Pending' else 'color: #28a745; font-weight: bold;'
-            st.dataframe(df_reqs.style.map(style_status, subset=['status']), use_container_width=True, hide_index=True)
+            st.dataframe(df_reqs.drop(columns=['id'], errors='ignore').style.map(style_status, subset=['status']), use_container_width=True, hide_index=True)
             
             st.markdown("---")
             st.subheader("Approve and Provision Account")
@@ -146,7 +146,7 @@ def render():
             st.info("No logs generated yet.")
         else:
             st.write("System logs (Latest 100 entries)")
-            st.dataframe(df_logs, use_container_width=True, hide_index=True)
+            st.dataframe(df_logs.drop(columns=['id'], errors='ignore'), use_container_width=True, hide_index=True)
             sel_log_ids = st.multiselect("Select Log IDs to Export:", options=df_logs['id'].tolist())
             df_exp = df_logs[df_logs['id'].isin(sel_log_ids)] if sel_log_ids else df_logs
             csv = df_exp.to_csv(index=False).encode('utf-8-sig')

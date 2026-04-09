@@ -170,7 +170,7 @@ def render_grid(tab_type, tab_name):
         if not has_error and results:
             st.success("Batch Processing Complete!")
             res_df = pd.DataFrame(results)
-            st.dataframe(res_df, use_container_width=True)
+            st.dataframe(res_df, use_container_width=True, hide_index=True)
             csv = res_df.to_csv(index=False).encode('utf-8-sig')
             st.download_button("Download Results as CSV", csv, f"pricing_{datetime.datetime.now().strftime('%Y%m%d')}.csv", "text/csv")
 

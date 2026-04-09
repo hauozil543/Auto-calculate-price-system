@@ -119,14 +119,14 @@ def render_pricing_grid():
         if results:
             st.success("Batch Processing Complete!")
             res_df = pd.DataFrame(results)
-            st.dataframe(res_df, use_container_width=True)
+            st.dataframe(res_df, use_container_width=True, hide_index=True)
             csv = res_df.to_csv(index=False).encode('utf-8-sig')
             st.download_button("Download Results", csv, "pricing_batch_results.csv", "text/csv")
 
 def render():
     st.header("Pricing Team Dashboard")
     
-    active_tab = st.radio("Menu", ["Quick Calculator", "Special Requests", "Database Monitor", "Price History"], horizontal=True, label_visibility="collapsed", key="pricing_main_nav")
+    active_tab = st.radio("Menu", ["Quick Calculator", "Special Requests", "PCR Analytics", "Database Monitor", "Price History"], horizontal=True, label_visibility="collapsed", key="pricing_main_nav")
     
     if active_tab == "Quick Calculator":
         render_pricing_grid()
@@ -267,6 +267,10 @@ def render():
                     else:
                         st.error(msg)
 
+    elif active_tab == "PCR Analytics":
+        import ui_pcr
+        ui_pcr.render_pcr_dashboard()
+
     elif active_tab == "Price History":
         st.subheader("Historical Price Management")
         st.subheader("Historical Price Lookup")
@@ -295,7 +299,7 @@ def render():
                 df_hist = db.search_guide_price_history(s_mat if s_mat else None, actual_reg, s_qtr if s_qtr else None, s_div if s_div else None)
                 if not df_hist.empty:
                     st.write(f"Results ({len(df_hist)} records):")
-                    st.dataframe(df_hist, use_container_width=True)
+                    st.dataframe(df_hist.drop(columns=['id'], errors='ignore'), use_container_width=True, hide_index=True)
                     csv_hist = df_hist.to_csv(index=False).encode('utf-8-sig')
                     st.download_button("Export Results to CSV", csv_hist, "price_history.csv")
                 else:
@@ -305,7 +309,7 @@ def render():
             st.subheader("Current Data Inventory Summary")
             df_summary = db.get_historical_summary()
             if not df_summary.empty:
-                st.dataframe(df_summary, use_container_width=True)
+                st.dataframe(df_summary, use_container_width=True, hide_index=True)
             else:
                 st.info("No historical data found in system.")
             

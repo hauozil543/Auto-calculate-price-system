@@ -296,13 +296,15 @@ def get_released_report_details(report_id, user_context):
     query = "SELECT * FROM pcr_report_details WHERE report_id = ?"
     params = [report_id]
     
-    if role == "Sales":
-        if level == "Staff":
-            query += " AND sales_employee_id = ?"
-            params.append(username)
-        elif level in ["L team leader", "C team leader"] and region != "ALL":
+    # RBAC Logic: Filtering based on user level and assignment
+    if level == "Staff":
+        query += " AND sales_employee_id = ?"
+        params.append(username)
+    elif level in ["L team leader", "C team leader"]:
+        if region and region != "ALL":
             query += " AND region = ?"
             params.append(region)
+    # G team leader or unrestricted roles (Admin/Pricing with level=None) stay unrestricted
     
     df = pd.read_sql_query(query, conn, params=params)
     conn.close()
