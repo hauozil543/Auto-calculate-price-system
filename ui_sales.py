@@ -5,69 +5,57 @@ import datetime
 import ui_pcr
 
 def render_grid(tab_type, tab_name):
-    st.write(f"Add rows to submit multi-line {tab_name} pricing calculations.")
+    st.markdown(f"### {tab_name} Interface")
     
-    state_key = f"row_ids_{tab_type}"
-    next_key = f"next_id_{tab_type}"
-    
-    if state_key not in st.session_state:
-        st.session_state[state_key] = [0]
-        st.session_state[next_key] = 1
-        
-    def add_row(idx):
-        st.session_state[state_key].insert(idx + 1, st.session_state[next_key])
-        st.session_state[next_key] += 1
-        
-    def del_row(idx):
-        if len(st.session_state[state_key]) > 1:
-            st.session_state[state_key].pop(idx)
-            
-    with st.form(f"multi_calc_form_{tab_type}"):
-        rows_data = []
-        cols = st.columns([3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 1])
-        headers = ["Mat 7D", "Mat 18D", "Name", "Reg", "Div", "Cat", "Qty", "Inco", "Ship", "Tgt Price", ""]
-        
-        for i, h in enumerate(headers):
-            cols[i].markdown(f"<span style='font-size:13px'><b>{h}</b></span>", unsafe_allow_html=True)
-        
-        user_reg = st.session_state.get('region', 'ALL')
-        allowed_regions = ["CN", "EU", "IN", "JP", "KR", "NA", "NM"] if user_reg == 'ALL' else [user_reg]
-        
-        for idx, r_id in enumerate(st.session_state[state_key]):
-            cols = st.columns([3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 1])
-            mat_7d = cols[0].text_input(f"7D_{tab_type}_{r_id}", label_visibility="collapsed")
-            mat_18d = cols[1].text_input(f"18D_{tab_type}_{r_id}", label_visibility="collapsed")
-            mat_name = cols[2].text_input(f"Name_{tab_type}_{r_id}", label_visibility="collapsed")
-            region = cols[3].selectbox(f"Reg_{tab_type}_{r_id}", allowed_regions, label_visibility="collapsed")
-            
-            divisions = ["HI", "LT", "AM", "IT"]
-            try: def_div_idx = divisions.index(st.session_state.get('division', 'HI'))
-            except: def_div_idx = 0
-            division = cols[4].selectbox(f"Div_{tab_type}_{r_id}", divisions, index=def_div_idx, label_visibility="collapsed")
-            
-            cat = cols[5].text_input(f"Cat_{tab_type}_{r_id}", placeholder="Auto/Manual", label_visibility="collapsed")
-            qty = cols[6].text_input(f"Qty_{tab_type}_{r_id}", label_visibility="collapsed")
-            incoterm = cols[7].text_input(f"Inco_{tab_type}_{r_id}", label_visibility="collapsed")
-            shipping = cols[8].text_input(f"Ship_{tab_type}_{r_id}", label_visibility="collapsed")
-            target = cols[9].text_input(f"Tgt_{tab_type}_{r_id}", label_visibility="collapsed")
-            
-            btn_col1, btn_col2 = cols[10].columns(2)
-            btn_col1.form_submit_button("+", on_click=add_row, args=(idx,), key=f"add_{tab_type}_{r_id}")
-            btn_col2.form_submit_button("-", on_click=del_row, args=(idx,), key=f"del_{tab_type}_{r_id}")
-            
-            rows_data.append({
-                "Material code (7D)": mat_7d, "Material code (18D)": mat_18d, "Material Name": mat_name,
-                "Region": region, "Division": division, "Category": cat, "Quantity": qty,
-                "Incoterm": incoterm, "Shipping fee": shipping, "Target Price (USD)": target
-            })
-            
-        submit_btn_label = "Calculate Standard Guide Prices" if tab_type == 'std' else "Send Batch Selected BIN Requests to Pricing"
-        submit_calc = st.form_submit_button(submit_btn_label, type="primary", use_container_width=True)
+    # Initialize default data for the editor
+    user_reg = st.session_state.get('region', 'ALL')
+    allowed_regions = ["CN", "EU", "IN", "JP", "KR", "NA", "NM"] if user_reg == 'ALL' else [user_reg]
+    divisions = ["HI", "LT", "AM", "IT"]
+    try: def_div = st.session_state.get('division', 'HI')
+    except: def_div = "HI"
+
+    default_df = pd.DataFrame([{
+        "Mat 7D": "", "Mat 18D": "", "Name": "", "Reg": allowed_regions[0], 
+        "Div": def_div, "Cat": "", "Qty": "0", "Inco": "", "Ship": "0", "Tgt Price": "0"
+    }])
+
+    with st.container(border=True):
+        st.markdown(f"<small>Tip: You can copy and paste rows directly from Excel into this table.</small>", unsafe_allow_html=True)
+        # Using st.data_editor for high-performance input
+        edited_df = st.data_editor(
+            default_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "Reg": st.column_config.SelectboxColumn("Region", options=allowed_regions, required=True),
+                "Div": st.column_config.SelectboxColumn("Division", options=divisions, required=True),
+                "Qty": st.column_config.NumberColumn("Qty", min_value=0),
+                "Ship": st.column_config.NumberColumn("Ship Fee", min_value=0),
+                "Tgt Price": st.column_config.NumberColumn("Target Price", min_value=0),
+            },
+            key=f"editor_{tab_type}"
+        )
+
+        col_void, col_btn = st.columns([2, 1])
+        submit_btn_label = "Calculate Standard Prices" if tab_type == 'std' else "Submit Selected BIN Requests"
+        btn_icon = "📊" if tab_type == 'std' else "📩"
+        submit_calc = col_btn.button(submit_btn_label, type="primary", use_container_width=True, icon=btn_icon)
         
     if submit_calc:
         results = []
         has_error = False
         conn = db.get_connection()
+        
+        # Mapping editor data back to the original dictionary structure to preserve 100% of the calculation logic
+        rows_data = []
+        for _, row in edited_df.iterrows():
+            rows_data.append({
+                "Material code (7D)": str(row["Mat 7D"]), "Material code (18D)": str(row["Mat 18D"]), 
+                "Material Name": str(row["Name"]), "Region": str(row["Reg"]), "Division": str(row["Div"]), 
+                "Category": str(row["Cat"]), "Quantity": row["Qty"], "Incoterm": str(row["Inco"]), 
+                "Shipping fee": row["Ship"], "Target Price (USD)": str(row["Tgt Price"])
+            })
+
         for idx, r in enumerate(rows_data):
             mat7d_val = r["Material code (7D)"].strip()
             mat18d_val = r["Material code (18D)"].strip()
@@ -101,9 +89,12 @@ def render_grid(tab_type, tab_name):
                     continue
                 cat_val = cat_val
 
-            target_str = r.get("Target Price (USD)", "").replace("$", "").replace(",", "").strip()
-            try: target_val = float(target_str)
+            target_val = 0.0
+            try:
+                target_str = str(r.get("Target Price (USD)", "")).replace("$", "").replace(",", "").strip()
+                target_val = float(target_str)
             except: target_val = 0.0
+            
             appr_level = "N/A"
 
             if tab_type == 'std':
@@ -114,22 +105,16 @@ def render_grid(tab_type, tab_name):
                 
                 if gp_val > 0:
                     if target_val > 0:
-                        if target_val >= p_suite['gp_r5']:
-                            appr_level = "GP Level (Auto Approved)"
-                        elif target_val >= p_suite['vp_r5']:
-                            appr_level = "VP Level (Auto Approved)"
-                        elif target_val >= p_suite['gt']:
-                            appr_level = "GT Leader Approval"
-                        else:
-                            appr_level = "Pricing Team Approval"
+                        if target_val >= p_suite['gp_r5']: appr_level = "GP Level (Auto Approved)"
+                        elif target_val >= p_suite['vp_r5']: appr_level = "VP Level (Auto Approved)"
+                        elif target_val >= p_suite['gt']: appr_level = "GT Leader Approval"
+                        else: appr_level = "Pricing Team Approval"
                     
                     r["Target Price (USD)"] = f"${target_val:.4f}" if target_val > 0 else ""
                     r["Approval Level"] = appr_level
                     
-                    for i in range(1, 6):
-                        r[f"GP Range {i}"] = f"${p_suite[f'gp_r{i}']:.4f}"
-                    for i in range(1, 6):
-                        r[f"VP Range {i}"] = f"${p_suite[f'vp_r{i}']:.4f}"
+                    for i in range(1, 6): r[f"GP Range {i}"] = f"${p_suite[f'gp_r{i}']:.4f}"
+                    for i in range(1, 6): r[f"VP Range {i}"] = f"${p_suite[f'vp_r{i}']:.4f}"
                     if st.session_state.get('level') == "G team leader":
                         r["GT Price"] = f"${p_suite['gt']:.4f}"
                         r["ST Price"] = f"${p_suite['st']:.4f}"
@@ -170,9 +155,10 @@ def render_grid(tab_type, tab_name):
         if not has_error and results:
             st.success("Batch Processing Complete!")
             res_df = pd.DataFrame(results)
-            st.dataframe(res_df, use_container_width=True, hide_index=True)
-            csv = res_df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("Download Results as CSV", csv, f"pricing_{datetime.datetime.now().strftime('%Y%m%d')}.csv", "text/csv")
+            with st.container(border=True):
+                st.dataframe(res_df, use_container_width=True, hide_index=True)
+                csv = res_df.to_csv(index=False).encode('utf-8-sig')
+                st.download_button("Download Results as CSV", csv, f"pricing_{datetime.datetime.now().strftime('%Y%m%d')}.csv", "text/csv", icon="📥")
 
 def render():
     st.header("Sales Pricing Tool")

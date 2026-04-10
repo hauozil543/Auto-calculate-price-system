@@ -126,7 +126,7 @@ def render_pricing_grid():
 def render():
     st.header("Pricing Team Dashboard")
     
-    active_tab = st.radio("Menu", ["Quick Calculator", "Special Requests", "PCR Analytics", "Database Monitor", "Price History"], horizontal=True, label_visibility="collapsed", key="pricing_main_nav")
+    active_tab = st.radio("Menu", ["Quick Calculator", "Special Requests", "Price Roadmap", "PCR Analytics", "Database Monitor", "Price History"], horizontal=True, label_visibility="collapsed", key="pricing_main_nav")
     
     if active_tab == "Quick Calculator":
         render_pricing_grid()
@@ -150,33 +150,34 @@ def render():
                     return 'color: #dc3545; font-weight: bold;'
                 return ''
                 
-            st.write("### All Requests Log Tracker")
-            st.write("Review statuses below. Select IDs to export specific rows.")
-            
-            df_req = df_req.rename(columns={'custom_id': 'Request ID'})
-            for i in range(1, 6):
-                df_req = df_req.rename(columns={f'range_{i}': f'GP Range {i}'})
-                df_req[f'VP Range {i}'] = df_req[f'GP Range {i}'] * 0.95
+            with st.container(border=True):
+                st.write("### All Requests Log Tracker")
+                st.write("Review statuses below. Select IDs to export specific rows.")
                 
-            if st.session_state.get('level') == "G team leader":
-                df_req['GT Price'] = df_req['VP Range 5'] * 0.95
-                df_req['ST Price'] = df_req['GT Price'] * 0.95
-            
-            cols_to_show_p = ['Request ID', 'sales_username', 'material_code', 'request_type', 'region', 'status', 'actual_yield'] + [f'GP Range {i}' for i in range(1, 6)] + [f'VP Range {i}' for i in range(1, 6)]
-            if st.session_state.get('level') == "G team leader":
-                cols_to_show_p += ['GT Price', 'ST Price']
-            cols_to_show_p += ['target_price', 'approval_level', 'created_at']
-            
-            df_display_p = df_req.reindex(columns=cols_to_show_p)
-            st.dataframe(df_display_p.style.map(style_status_col, subset=['status']), use_container_width=True, hide_index=True)
-            
-            id_map_p = dict(zip(df_req['Request ID'], df_req['id']))
-            selected_display_ids = st.multiselect("Select Request IDs to Export:", options=list(id_map_p.keys()), key="sel_pricing_log")
-            selected_internal_ids = [id_map_p[sid] for sid in selected_display_ids]
+                df_req = df_req.rename(columns={'custom_id': 'Request ID'})
+                for i in range(1, 6):
+                    df_req = df_req.rename(columns={f'range_{i}': f'GP Range {i}'})
+                    df_req[f'VP Range {i}'] = df_req[f'GP Range {i}'] * 0.95
+                    
+                if st.session_state.get('level') == "G team leader":
+                    df_req['GT Price'] = df_req['VP Range 5'] * 0.95
+                    df_req['ST Price'] = df_req['GT Price'] * 0.95
+                
+                cols_to_show_p = ['Request ID', 'sales_username', 'material_code', 'request_type', 'region', 'status', 'actual_yield'] + [f'GP Range {i}' for i in range(1, 6)] + [f'VP Range {i}' for i in range(1, 6)]
+                if st.session_state.get('level') == "G team leader":
+                    cols_to_show_p += ['GT Price', 'ST Price']
+                cols_to_show_p += ['target_price', 'approval_level', 'created_at']
+                
+                df_display_p = df_req.reindex(columns=cols_to_show_p)
+                st.dataframe(df_display_p.style.map(style_status_col, subset=['status']), use_container_width=True, hide_index=True)
+                
+                id_map_p = dict(zip(df_req['Request ID'], df_req['id']))
+                selected_display_ids = st.multiselect("Select Request IDs to Export:", options=list(id_map_p.keys()), key="sel_pricing_log")
+                selected_internal_ids = [id_map_p[sid] for sid in selected_display_ids]
 
-            df_to_export = df_req[df_req['id'].isin(selected_internal_ids)] if selected_internal_ids else df_req
-            csv_pricing = df_to_export.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(label="Export Pricing Log to CSV", data=csv_pricing, file_name=f"pricing_log_{datetime.datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
+                df_to_export = df_req[df_req['id'].isin(selected_internal_ids)] if selected_internal_ids else df_req
+                csv_pricing = df_to_export.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(label="Export Pricing Log to CSV", data=csv_pricing, file_name=f"pricing_log_{datetime.datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", icon="📥")
             
             df_pending = df_req[df_req['status'].str.contains('Pending')]
             if not df_pending.empty:
@@ -254,18 +255,119 @@ def render():
         col4.metric("Costs", c_cost)
         
         st.divider()
-        st.subheader("Database Master Override")
-        st.markdown("Re-upload Price Master Excel to refresh core tables.")
-        uploaded_master = st.file_uploader("Select Price Master Excel", type=["xlsx"])
-        if uploaded_master:
-            if st.button("Overwrite Master Database", type="primary", use_container_width=True):
-                with st.spinner("Processing..."):
-                    success, msg = db.import_excel_to_sqlite(uploaded_master)
-                    if success:
-                        st.success(msg)
-                        st.rerun()
-                    else:
-                        st.error(msg)
+        with st.container(border=True):
+            st.subheader("Database Master Override")
+            st.markdown("Re-upload Price Master Excel to refresh core tables.")
+            uploaded_master = st.file_uploader("Select Price Master Excel", type=["xlsx"])
+            if uploaded_master:
+                if st.button("Overwrite Master Database", type="primary", use_container_width=True, icon="📂"):
+                    with st.spinner("Processing..."):
+                        success, msg = db.import_excel_to_sqlite(uploaded_master)
+                        if success:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
+    elif active_tab == "Price Roadmap":
+        st.subheader("Interactive Price Trend Analysis (Roadmap)")
+        with st.container(border=True):
+            r_col1, r_col2 = st.columns(2)
+            rm_mat = r_col1.text_input("7D Material Code", placeholder="e.g. 7251744", key="rm_mat")
+            
+            # Fetch available regions
+            conn = db.get_connection()
+            c = conn.cursor()
+            c.execute("SELECT DISTINCT region FROM guide_price_historical")
+            available_regs = sorted([r[0] for r in c.fetchall() if r[0] and r[0] != "Unknown"])
+            conn.close()
+            
+            rm_reg = r_col2.selectbox("Select Target Region", available_regs, key="rm_reg")
+
+            if st.button("Generate Pricing Roadmap", use_container_width=True, icon="📜"):
+                if not rm_mat:
+                    st.warning("Please enter a Material Code first.")
+                else:
+                    with st.spinner("Analyzing historical trend data..."):
+                        # Fetch history
+                        df_rm = db.search_guide_price_history(rm_mat, rm_reg, None, None)
+                        
+                        if df_rm.empty:
+                            st.warning(f"No pricing history found for {rm_mat} in {rm_reg}.")
+                        else:
+                            # Quarter Sorting Logic (YY.NQ)
+                            def get_q_sort_key(q_str):
+                                try:
+                                    # Handle "GP " prefix or extra spaces seen in UI
+                                    clean_q = str(q_str).replace("GP ", "").strip()
+                                    parts = clean_q.split('.')
+                                    yr = int(parts[0])
+                                    qtr = int(parts[1][0])
+                                    return (yr, qtr)
+                                except:
+                                    return (0, 0)
+
+                            df_rm['sort_key'] = df_rm['Quarter'].apply(get_q_sort_key)
+                            df_rm = df_rm.sort_values(by='sort_key', ascending=True).reset_index(drop=True)
+                            
+                            # Baseline: GP R4 (Approved by user)
+                            target_col = "GP R4"
+                            if target_col not in df_rm.columns:
+                                # Fallback search
+                                for cname in df_rm.columns:
+                                    if "R4" in cname:
+                                        target_col = cname
+                                        break
+                            
+                            if target_col not in df_rm.columns:
+                                st.error(f"Baseline 'GP R4' not found in history data.")
+                            else:
+                                df_rm['Price'] = pd.to_numeric(df_rm[target_col], errors='coerce')
+                                df_rm = df_rm.dropna(subset=['Price'])
+                                
+                                # Delta %
+                                df_rm['Delta_Val'] = df_rm['Price'].diff()
+                                df_rm['Delta_Pct'] = (df_rm['Delta_Val'] / df_rm['Price'].shift(1)) * 100
+                                
+                                # Plotly Line Chart
+                                import plotly.express as px
+                                prod_name = df_rm['Product Name'].iloc[0] if 'Product Name' in df_rm.columns else ""
+                                fig = px.line(df_rm, x='Quarter', y='Price', 
+                                            title=f"Price Roadmap: {rm_mat} - {prod_name} ({rm_reg}) | Baseline: GP Range 4",
+                                            markers=True,
+                                            template="plotly_white",
+                                            color_discrete_sequence=['#2E7D32'])
+                                
+                                fig.update_layout(yaxis_title="Guide Price (USD)", xaxis_title="Quarter")
+                                
+                                for i, row in df_rm.iterrows():
+                                    label_text = f"<b>${row['Price']:.4f}</b>"
+                                    label_color = "grey"
+                                    
+                                    if pd.notna(row['Delta_Pct']):
+                                        pct = row['Delta_Pct']
+                                        if pct > 0:
+                                            label_text += f"<br><b>↑ (+{pct:.1f}%)</b>"
+                                            label_color = "#2E7D32" # Professional Green
+                                        elif pct < 0:
+                                            label_text += f"<br><b>↓ ({pct:.1f}%)</b>"
+                                            label_color = "#d32f2f" # Red
+                                        else:
+                                            label_text += f"<br><b>-- (0.0%)</b>"
+                                    
+                                    fig.add_annotation(
+                                        x=row['Quarter'],
+                                        y=row['Price'],
+                                        text=label_text,
+                                        showarrow=False,
+                                        font=dict(color=label_color, size=13),
+                                        yshift=24
+                                    )
+
+                                st.plotly_chart(fig, use_container_width=True)
+                                
+                                with st.expander("Show History Details Table", expanded=False):
+                                    st.dataframe(df_rm[['Quarter', 'Price', 'Delta_Pct']].style.format({"Price": "${:.4f}", "Delta_Pct": "{:+.1f}%"}), use_container_width=True, hide_index=True)
 
     elif active_tab == "PCR Analytics":
         import ui_pcr
@@ -273,37 +375,37 @@ def render():
 
     elif active_tab == "Price History":
         st.subheader("Historical Price Management")
-        st.subheader("Historical Price Lookup")
-        f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-        s_mat = f_col1.text_input("7D Material Code", placeholder="e.g. 7251744", key="s_hist_mat")
-        s_div = f_col2.selectbox("Division", [""] + ["HI", "AM", "IT", "LT"], key="s_hist_div")
-        
-        conn = db.get_connection()
-        if s_div:
-            c = conn.cursor()
-            c.execute("SELECT DISTINCT region FROM guide_price_historical WHERE division = ?", (s_div,))
-            regs = sorted([r[0] for r in c.fetchall() if r[0] and r[0] != "Unknown"])
-        else:
-            c = conn.cursor()
-            c.execute("SELECT DISTINCT region FROM guide_price_historical")
-            regs = sorted([r[0] for r in c.fetchall() if r[0] and r[0] != "Unknown"])
-        conn.close()
-        
-        s_reg = f_col3.selectbox("Region", [""] + regs, key="s_hist_reg")
+        with st.container(border=True):
+            st.subheader("Historical Price Lookup")
+            f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+            s_mat = f_col1.text_input("7D Material Code", placeholder="e.g. 7251744", key="s_hist_mat")
+            s_div = f_col2.selectbox("Division", [""] + ["HI", "AM", "IT", "LT"], key="s_hist_div")
             
-        s_qtr = f_col4.selectbox("Quarter", [""] + ["25.1Q", "25.2Q", "25.3Q", "25.4Q", "26.1Q"], key="s_hist_qtr")
+            conn = db.get_connection()
+            if s_div:
+                c = conn.cursor()
+                c.execute("SELECT DISTINCT region FROM guide_price_historical WHERE division = ?", (s_div,))
+                regs = sorted([r[0] for r in c.fetchall() if r[0] and r[0] != "Unknown"])
+            else:
+                c = conn.cursor()
+                c.execute("SELECT DISTINCT region FROM guide_price_historical")
+                regs = sorted([r[0] for r in c.fetchall() if r[0] and r[0] != "Unknown"])
+            conn.close()
+            
+            s_reg = f_col3.selectbox("Region", [""] + regs, key="s_hist_reg")
+            s_qtr = f_col4.selectbox("Quarter", [""] + ["25.1Q", "25.2Q", "25.3Q", "25.4Q", "26.1Q"], key="s_hist_qtr")
 
-        if st.button("Search History", use_container_width=True):
-            with st.spinner("Searching..."):
-                actual_reg = s_reg if s_reg else None
-                df_hist = db.search_guide_price_history(s_mat if s_mat else None, actual_reg, s_qtr if s_qtr else None, s_div if s_div else None)
-                if not df_hist.empty:
-                    st.write(f"Results ({len(df_hist)} records):")
-                    st.dataframe(df_hist.drop(columns=['id'], errors='ignore'), use_container_width=True, hide_index=True)
-                    csv_hist = df_hist.to_csv(index=False).encode('utf-8-sig')
-                    st.download_button("Export Results to CSV", csv_hist, "price_history.csv")
-                else:
-                    st.warning("No records matched.")
+            if st.button("Search History", use_container_width=True, icon="📜"):
+                with st.spinner("Searching..."):
+                    actual_reg = s_reg if s_reg else None
+                    df_hist = db.search_guide_price_history(s_mat if s_mat else None, actual_reg, s_qtr if s_qtr else None, s_div if s_div else None)
+                    if not df_hist.empty:
+                        st.write(f"Results ({len(df_hist)} records):")
+                        st.dataframe(df_hist.drop(columns=['id'], errors='ignore'), use_container_width=True, hide_index=True)
+                        csv_hist = df_hist.to_csv(index=False).encode('utf-8-sig')
+                        st.download_button("Export Results to CSV", csv_hist, "price_history.csv", icon="📥")
+                    else:
+                        st.warning("No records matched.")
 
         with st.expander("Import New Historical Data", expanded=False):
             st.subheader("Current Data Inventory Summary")

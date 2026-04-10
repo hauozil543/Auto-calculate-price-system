@@ -40,7 +40,9 @@ def init_db():
         cursor.execute("INSERT INTO users (username, password_hash, role, division) VALUES ('pricing_demo', '123456', 'Pricing', 'HI')")
         cursor.execute("INSERT INTO users (username, password_hash, role, division) VALUES ('sales_demo', '123456', 'Sales', 'HI')")
 
-    cursor.execute('''CREATE TABLE IF NOT EXISTS guide_price_historical (id INTEGER PRIMARY KEY AUTOINCREMENT, material_code TEXT, region TEXT, division TEXT, quarter TEXT, pricing_data TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(material_code, region, division, quarter))''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS guide_price_historical (id INTEGER PRIMARY KEY AUTOINCREMENT, material_code TEXT, material_name TEXT, region TEXT, division TEXT, quarter TEXT, pricing_data TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(material_code, region, division, quarter))''')
+    try: cursor.execute("ALTER TABLE guide_price_historical ADD COLUMN material_name TEXT")
+    except: pass
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_hist_mat ON guide_price_historical(material_code)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_hist_div ON guide_price_historical(division)')
     
@@ -130,8 +132,9 @@ def import_guide_price_history(excel_file, division):
             for _, row in df.iterrows():
                 mat_val = str(row[mat_col]).strip()[:7]
                 reg_val = str(row[reg_col]).strip() if reg_col else "Unknown"
+                name_val = str(row.get('Material Name', row.get('Description', ''))).strip()
                 pricing_json = json.dumps(row.to_dict(), ensure_ascii=False)
-                conn.execute("INSERT OR REPLACE INTO guide_price_historical (material_code, region, division, quarter, pricing_data) VALUES (?, ?, ?, ?, ?)", (mat_val, reg_val, division, sheet, pricing_json))
+                conn.execute("INSERT OR REPLACE INTO guide_price_historical (material_code, material_name, region, division, quarter, pricing_data) VALUES (?, ?, ?, ?, ?, ?)", (mat_val, name_val, reg_val, division, sheet, pricing_json))
                 total += 1
         conn.commit()
         conn.close()
@@ -148,13 +151,24 @@ def search_guide_price_history(material_code=None, region=None, quarter=None, di
         if quarter: conditions.append("quarter LIKE ?"); params.append(f"%{quarter}%")
         if division: conditions.append("division = ?"); params.append(division)
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
-        df = pd.read_sql_query(f"SELECT division, quarter, region, pricing_data FROM guide_price_historical {where} ORDER BY quarter DESC LIMIT 1000", conn, params=params)
+        
+        # Use JOIN to recover material_name from standard_products for legacy data
+        query = f"""
+            SELECT h.division, h.quarter, h.region, 
+                   COALESCE(h.material_name, s.material_name, 'Unknown Product') as material_name, 
+                   h.pricing_data 
+            FROM guide_price_historical h
+            LEFT JOIN standard_products s ON h.material_code = s.material_code
+            {where.replace('material_code', 'h.material_code').replace('region', 'h.region').replace('division', 'h.division')}
+            ORDER BY h.quarter DESC LIMIT 1000
+        """
+        df = pd.read_sql_query(query, conn, params=params)
         conn.close()
         if df.empty: return pd.DataFrame()
         h_list = []
         for _, row in df.iterrows():
             item = json.loads(row['pricing_data'])
-            fixed = {'Division': row['division'], 'Quarter': row['quarter'], 'Region': row['region']}
+            fixed = {'Division': row['division'], 'Quarter': row['quarter'], 'Region': row['region'], 'Product Name': row['material_name']}
             fixed.update(item)
             h_list.append(fixed)
         return pd.DataFrame(h_list)
